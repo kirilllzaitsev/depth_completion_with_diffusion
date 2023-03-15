@@ -1,4 +1,6 @@
-# Official repository of the paper TBA
+# Official repository for the paper TBA
+
+## Contents
 
 ## Acknowledgements
 
