@@ -1,0 +1,2 @@
+First and last five PNGs under data_raw/image_0[2,3] don't have corresponding ground truths and
+are filtered out within data_paths_handlers.py

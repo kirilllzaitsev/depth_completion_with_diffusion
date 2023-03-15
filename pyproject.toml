@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "self-supervised-dc"
+version = "0.1.0"
+description = ""
+authors = ["kirilllzaitsev <kzaitsev88@gmail.com>"]
+readme = "README.md"
+packages = [{include = "self_supervised_dc"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+numpy = "^1.24.2"
+matplotlib = "^3.7.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
