@@ -1,5 +1,6 @@
 """Covers losses in the self- completion"""
 
+import kbnet.losses as losses
 import torch
 import torch.nn as nn
 from utils import check_tensor_shape, check_tensor_shapes_match
@@ -111,94 +112,73 @@ class DepthLoss(nn.Module):
         return self.loss
 
 
-class PhotometricConsistencyLoss(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(
-        self,
-        target,
-        recon,
-        mask=None,
-        w_co=0.15,
-        w_st=0.95,
-    ):
-        """
-        Photommetric loss between the original (adjacent) frame and the one reconstructed, i.e., obtained by warping the target frame.
-        From the paper:
-        For KITTI, we choose wph = 1, wco = 0.15, wst = 0.95, wsz = 0.6, and wsm = 0.04
-
-        Args:
-            target: I_t frame
-            recon: I_tau frame, tau is the index of an adjacent frame
-            mask: mask out pixels present in the sparse depth map
-        """
-
-        check_tensor_shapes_match(target, recon)
-        ssim = SSIM()
-        ssim_compound = w_st * (1 - ssim(recon, target))
-        l1_compound = w_co * MaskedL1Loss()(recon, target, mask)
-        self.loss = (l1_compound + ssim_compound).mean()
-        return self.loss
-
-
-class SparseDepthConsistencyLoss(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, src, tgt, w):
-        """
-        Computes the sparse depth consistency loss
-
-        Arg(s):
-            src : torch.Tensor[float32]
-                N x 1 x H x W source depth
-            tgt : torch.Tensor[float32]
-                N x 1 x H x W target depth
-            w : torch.Tensor[float32]
-                N x 1 x H x W weights
-        Returns:
-            torch.Tensor[float32] : mean absolute difference between source and target depth
-        """
-
-        delta = torch.abs(tgt - src)
-        loss = torch.sum(w * delta, dim=[1, 2, 3])
-
-        return torch.mean(loss / torch.sum(w, dim=[1, 2, 3]))
-
-
 class TotalLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, subloss_weights=None):
         super().__init__()
-        self.photometric_loss = PhotometricConsistencyLoss()
-        self.smoothness_loss = LocalSmoothnessLoss()
-        self.sparse_depth_loss = SparseDepthConsistencyLoss()
+        self.subloss_weights = (
+            {
+                "color": 0.15,
+                "structure": 0.95,
+                "sparse_depth": 0.60,
+                "smoothness": 0.04,
+            }
+            if subloss_weights is None
+            else subloss_weights
+        )
 
     def forward(
         self,
         target,
-        recon,
-        depth,
+        target_reconstructions,
+        predicted_depth,
         sparse_depth,
-        mask,
-        w_ph=1,
-        w_sz=0.6,
-        w_sm=0.04,
+        validity_map,
     ):
         """
         Args:
             target: I_t frame
-            recon: I_tau frame, tau is the index of an adjacent frame
+            target_reconstructions: I_tau frame, tau is the index of an adjacent frame
             depth: predicted dense depth map
             sparse_depth: sparse (input) depth map
-            mask: mask that has zeros at non-zero pixels of the sparse depth map
+            validity_map: mask that excludes non-zero pixels of the sparse depth map from loss calculation
+            w_ph, w_sz, w_sm - weights from the KBnet paper, default to the values used for KITTI
         """
-        self.loss = (
-            w_ph * self.photometric_loss(target, recon, mask)
-            + w_sm * self.smoothness_loss(depth)
-            + w_sz * self.sparse_depth_loss(depth, sparse_depth, mask)
+        photometric_los = 0.0
+        color_consistency_los = 0.0
+        structural_consistency_los = 0.0
+        for reconstruction in target_reconstructions:
+            color_consistency_los += losses.color_consistency_loss_func(
+                src=reconstruction, tgt=target, w=validity_map
+            )
+
+            structural_consistency_los = losses.structural_consistency_loss_func(
+                src=reconstruction, tgt=target, w=validity_map
+            )
+
+        loss_sparse_depth = losses.sparse_depth_consistency_loss_func(
+            src=predicted_depth, tgt=sparse_depth, w=validity_map
         )
-        return self.loss
+
+        loss_smoothness = losses.smoothness_loss_func(
+            predict=predicted_depth, image=target
+        )
+
+        self.loss = (
+            self.subloss_weights["color"] * color_consistency_los
+            + self.subloss_weights["structure"] * structural_consistency_los
+            + self.subloss_weights["sparse_depth"] * loss_sparse_depth
+            + self.subloss_weights["smoothness"] * loss_smoothness
+        )
+
+        self.loss_info = {
+            "loss_color": color_consistency_los,
+            "loss_structure": structural_consistency_los,
+            "loss_sparse_depth": loss_sparse_depth,
+            "loss_smoothness": loss_smoothness,
+            "loss": loss,
+        }
+
+        return self.loss, self.loss_info
 
 
 class LocalSmoothnessLoss(nn.Module):

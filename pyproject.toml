@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "self-supervised-dc"
+name = "rsl_depth_completion"
 version = "0.1.0"
 description = ""
 authors = ["kirilllzaitsev <kzaitsev88@gmail.com>"]
