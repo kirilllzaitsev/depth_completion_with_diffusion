@@ -1,0 +1,31 @@
+defaults:
+  - __self__
+  - dataset: kitti
+  - paths: default.yaml
+
+batch_size: 1
+cpu: false
+criterion: l2
+data_folder: ${dataset.data_folder}
+epochs: 11
+evaluate: ''
+input: gd
+jitter: 0.1
+layers: 34
+lr: 1.0e-05
+n_adjacent: 1
+num_workers: 4
+pretrained: false
+print_freq: 10
+rank_metric: rmse
+resume: ''
+split: train
+start_epoch: 0
+subsplit: select
+train_mode: dense+photo
+weight_decay: 0
+
+hydra:  
+  output_subdir: null  
+  run:  
+    dir: .

@@ -1,0 +1,4 @@
+defaults:
+  - default.yaml
+data_folder: /media/master/text/cv_data/kitti-depth-completion
+_target_: self_supervised_dc.custom_dataset.CustomDCDataset
