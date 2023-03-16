@@ -1,11 +1,30 @@
-import typing as t
-
 import glob
 import os
+import typing as t
 from abc import abstractmethod
 
 
-class SplitDataPathsHandler:
+class DataPathsHandler:
+    def __init__(self, data_folder):
+        self.data_folder = data_folder
+
+    @property
+    @abstractmethod
+    def paths_d(self) -> list[str]:
+        pass
+
+    @property
+    @abstractmethod
+    def paths_img(self) -> list[str]:
+        pass
+
+    @property
+    @abstractmethod
+    def paths_gt(self) -> list[str]:
+        pass
+
+
+class SplitDataPathsHandler(DataPathsHandler):
     def __init__(self, split, subsplit, data_folder):
         self.split = split
         self.subsplit = subsplit
@@ -25,7 +44,7 @@ class SplitDataPathsHandler:
         return self.handler.paths_gt
 
 
-class AnonymousdDataPathsHandler(SplitDataPathsHandler):
+class AnonymousdDataPathsHandler(DataPathsHandler):
     def __init__(self, glob_img):
         self.glob_img = glob_img
 
@@ -72,7 +91,7 @@ class AnonymousPredictiondDataPathsHandler(AnonymousdDataPathsHandler):
         return [None] * len(glob.glob(self.glob_img))
 
 
-class LabeledDataPathsHandler(SplitDataPathsHandler):
+class LabeledDataPathsHandler(DataPathsHandler):
     def __init__(self, glob_d, glob_gt):
         self.glob_d = glob_d
         self.glob_gt = glob_gt
@@ -156,7 +175,7 @@ class ValSelectSubsplitDataPathsHandler(LabeledDataPathsHandler):
         return p.replace("groundtruth_depth", "image")
 
 
-def find_data_paths_handler(split, subsplit=None) -> t.Type[SplitDataPathsHandler]:
+def find_data_paths_handler(split, subsplit=None) -> t.Type[DataPathsHandler]:
     if split == "train":
         return TrainSplitDataPathsHandler
     elif split == "val":

@@ -40,9 +40,9 @@ def depth_read(filename):
     return depth
 
 
-def get_paths_and_transform(split, subsplit, config) -> (list, Transform):
+def get_paths_and_transform(split, subsplit, data_folder, config) -> (list, Transform):
     assert config.use_d or config.use_img or config.use_g, "no proper input selected"
-    data_paths_handler = SplitDataPathsHandler(split, subsplit, config.data_folder)
+    data_paths_handler = SplitDataPathsHandler(split, subsplit, data_folder)
     if split == "train":
         transform = TrainTransform(config)
     elif split == "val":

@@ -1,11 +1,11 @@
 import numpy as np
 
 
-def load_calib():
+def load_calib(path_to_calib_files: str):
     """
     Temporarily hardcoding the calibration matrix using calib file from 2011_09_26
     """
-    calib = open(f"./kitti_utils/calib_cam_to_cam.txt", "r")
+    calib = open(f"{path_to_calib_files}/calib_cam_to_cam.txt", "r")
     lines = calib.readlines()
     P_rect_line = lines[25]
 
