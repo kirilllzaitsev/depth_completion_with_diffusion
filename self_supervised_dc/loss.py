@@ -1,15 +1,16 @@
-"""Covers losses in the self-supervised depth completion"""
+"""Covers losses in the self- completion"""
 
 import torch
 import torch.nn as nn
+from utils import check_tensor_shape, check_tensor_shapes_match
 
 
 class MaskedMSELoss(nn.Module):
     def __init__(self):
-        super(MaskedMSELoss, self).__init__()
+        super().__init__()
 
     def forward(self, pred, target):
-        assert pred.dim() == target.dim(), "inconsistent dimensions"
+        check_tensor_shapes_match(pred, target)
         valid_mask = (target > 0).detach()
         diff = target - pred
         diff = diff[valid_mask]
@@ -19,7 +20,7 @@ class MaskedMSELoss(nn.Module):
 
 class MaskedL1Loss(nn.Module):
     def __init__(self):
-        super(MaskedL1Loss, self).__init__()
+        super().__init__()
 
     def forward(self, pred, target, weight=None):
         assert pred.dim() == target.dim(), "inconsistent dimensions"
@@ -32,24 +33,26 @@ class MaskedL1Loss(nn.Module):
 
 class PhotometricLoss(nn.Module):
     def __init__(self):
-        super(PhotometricLoss, self).__init__()
+        super().__init__()
 
     def forward(self, target, recon, mask=None):
+        """
+        Photommetric loss between the original (adjacent) frame and the one reconstructed, i.e., obtained by warping the target frame.
 
-        assert recon.dim(
-        ) == 4, "expected recon dimension to be 4, but instead got {}.".format(
-            recon.dim())
-        assert target.dim(
-        ) == 4, "expected target dimension to be 4, but instead got {}.".format(
-            target.dim())
-        assert recon.size()==target.size(), "expected recon and target to have the same size, but got {} and {} instead"\
-            .format(recon.size(), target.size())
+        Args:
+            target: I_t frame
+            recon: I_tau frame, tau is the index of an adjacent frame
+            mask: mask out pixels present in the sparse depth map
+        """
+
+        check_tensor_shapes_match(target, recon)
         diff = (target - recon).abs()
         diff = torch.sum(diff, dim=1)  # sum along the color channel
 
         # compare only pixels that are not black
-        valid_mask = (torch.sum(recon, 1) > 0).float() * (torch.sum(target, 1)
-                                                          > 0).float()
+        valid_mask = (torch.sum(recon, 1) > 0).float() * (
+            torch.sum(target, 1) > 0
+        ).float()
         if mask is not None:
             valid_mask = valid_mask * torch.squeeze(mask).float()
         valid_mask = valid_mask.bool().detach()
@@ -70,98 +73,26 @@ class PhotometricLoss(nn.Module):
 
 class SmoothnessLoss(nn.Module):
     def __init__(self):
-        super(SmoothnessLoss, self).__init__()
+        super().__init__()
 
     def forward(self, depth):
         """
-        Should it be a second derivative or a first derivative? 
-         
-        Args: 
-            depth: depth feature map 
-        """
-        def second_derivative(x):
-            assert x.dim(
-            ) == 4, "expected 4-dimensional data, but instead got {}".format(
-                x.dim())
-            horizontal = 2 * x[:, :, 1:-1, 1:-1] - x[:, :, 1:-1, :
-                                                     -2] - x[:, :, 1:-1, 2:]
-            vertical = 2 * x[:, :, 1:-1, 1:-1] - x[:, :, :-2, 1:
-                                                   -1] - x[:, :, 2:, 1:-1]
-            der_2nd = horizontal.abs() + vertical.abs()
-            return der_2nd.mean()
+        Should it be a second derivative or a first derivative?
 
-
-class DepthLoss(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, depth, target, mask):
-        """
         Args:
-            depth: predicted dense depth map
-            target: sparse (input) depth map
-            mask: mask that has zeros at non-zero pixels of the sparse depth map
+            depth: depth feature map
         """
-        check_tensor_shapes_match(depth, target)
-        check_tensor_shapes_match(target, mask)
-        diff = ((target - depth) * mask).square()
-        self.loss = torch.sum(diff)
+        check_tensor_shape(depth, target_dim=4)
 
-        self.loss = second_derivative(depth)
+        self.loss = self.second_derivative(depth)
+        return self.loss
 
-class DepthLoss(nn.Module):
-    def __init__(self):
-        super().__init__()
+    def second_derivative(self, x):
+        horizontal = 2 * x[:, :, 1:-1, 1:-1] - x[:, :, 1:-1, :-2] - x[:, :, 1:-1, 2:]
+        vertical = 2 * x[:, :, 1:-1, 1:-1] - x[:, :, :-2, 1:-1] - x[:, :, 2:, 1:-1]
+        der_2nd = horizontal.abs() + vertical.abs()
+        return der_2nd.mean()
 
-    def forward(self, depth, target, mask):
-        """
-        Args:
-            depth: predicted dense depth map
-            target: sparse (input) depth map
-            mask: mask that has zeros at non-zero pixels of the sparse depth map
-        """
-        check_tensor_shapes_match(depth, target)
-        check_tensor_shapes_match(target, mask)
-        diff = ((target - depth) * mask).square()
-        self.loss = torch.sum(diff)
-
-        self.loss = second_derivative(depth)
-
-class DepthLoss(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, depth, target, mask):
-        """
-        Args:
-            depth: predicted dense depth map
-            target: sparse (input) depth map
-            mask: mask that has zeros at non-zero pixels of the sparse depth map
-        """
-        check_tensor_shapes_match(depth, target)
-        check_tensor_shapes_match(target, mask)
-        diff = ((target - depth) * mask).square()
-        self.loss = torch.sum(diff)
-
-        self.loss = second_derivative(depth)
-
-class DepthLoss(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, depth, target, mask):
-        """
-        Args:
-            depth: predicted dense depth map
-            target: sparse (input) depth map
-            mask: mask that has zeros at non-zero pixels of the sparse depth map
-        """
-        check_tensor_shapes_match(depth, target)
-        check_tensor_shapes_match(target, mask)
-        diff = ((target - depth) * mask).square()
-        self.loss = torch.sum(diff)
-
-        self.loss = second_derivative(depth)
 
 class DepthLoss(nn.Module):
     def __init__(self):
@@ -181,6 +112,7 @@ class DepthLoss(nn.Module):
 
         return self.loss
 
+
 if __name__ == "__main__":
     ytrue = torch.tensor([1.0])
     yhat = torch.tensor([2.0])
@@ -189,4 +121,3 @@ if __name__ == "__main__":
     # loss = custom_mse_loss(ytrue, yhat)
     photommetric_loss = PhotometricLoss()
     loss = photommetric_loss(input_img, reconstructed_img)
-    print(f"{loss=}")
