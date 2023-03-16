@@ -7,14 +7,12 @@ import cv2
 import numpy as np
 import torch
 
-from .dataset_utils.adjacent_img_handler import get_adj_imgs
-
 from .dataset_utils import camera_calibration as calib
 from .dataset_utils import custom_transforms as transforms
 from .dataset_utils import pose_estimator as pose
 from .dataset_utils import raw_data_loaders as dl
+from .dataset_utils.adjacent_img_handler import get_adj_imgs
 from .dataset_utils.data_logging import logger
-
 
 
 class KittiDCDataset(torch.utils.data.Dataset):
@@ -27,11 +25,15 @@ class KittiDCDataset(torch.utils.data.Dataset):
 
     """
 
-    def __init__(self, ds_config, data_folder, path_to_calib_files):
+    def __init__(self, ds_config, kitti_depth_completion_data_dir, path_to_calib_files):
         self.config = ds_config
         self.split = ds_config.split
-        self.subsplit = ds_config.subsplit if ds_config.subsplit is not None else "train"
-        self.paths, self.transform = dl.get_paths_and_transform(self.split, self.subsplit, data_folder, ds_config)
+        self.subsplit = (
+            ds_config.subsplit if ds_config.subsplit is not None else "train"
+        )
+        self.paths, self.transform = dl.get_paths_and_transform(
+            self.split, self.subsplit, kitti_depth_completion_data_dir, ds_config
+        )
         self.K = calib.load_calib(path_to_calib_files)
         self.threshold_translation = 0.1
 

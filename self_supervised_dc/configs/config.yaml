@@ -1,12 +1,12 @@
 defaults:
-  - __self__
+  - _self_
   - dataset: kitti
   - paths: default.yaml
 
 batch_size: 1
 cpu: false
 criterion: l2
-data_folder: ${dataset.data_folder}
+kitti_depth_completion_data_dir: ${dataset.kitti_depth_completion_data_dir}
 epochs: 11
 evaluate: ''
 input: gd

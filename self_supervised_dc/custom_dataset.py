@@ -16,9 +16,9 @@ from .dataset_utils.data_logging import logger
 
 
 class CustomDCDataset(torch.utils.data.Dataset):
-    def __init__(self, ds_config, data_folder, path_to_calib_files):
+    def __init__(self, ds_config, kitti_depth_completion_data_dir, path_to_calib_files):
         self.config = ds_config
-        self.data_folder = data_folder
+        self.kitti_depth_completion_data_dir = kitti_depth_completion_data_dir
         self.K = calib.load_calib(path_to_calib_files)
         self.threshold_translation = 0.1
 

@@ -6,6 +6,8 @@
 
 ### Pre-requisites
 
+#### Software
+
 - Python >=3.7
 - Poetry ~=1.4.0
 
@@ -13,6 +15,11 @@
 python --version
 curl -sSL https://install.python-poetry.org | python -
 ```
+
+#### Data
+
+- Download the KITTI Depth Completion dataset from [here](https://www.cvlibs.net/datasets/kitti/eval_depth.php?benchmark=depth_completion) to a PATH_TO_DEPTH_COMPLETION directory of your choice.
+- Replace '???' with PATH_TO_DEPTH_COMPLETION in all files under the self_supervised_dc/configs/dataset directory.
 
 ### Python dependencies
 

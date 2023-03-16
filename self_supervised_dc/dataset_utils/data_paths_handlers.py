@@ -5,8 +5,8 @@ from abc import abstractmethod
 
 
 class DataPathsHandler:
-    def __init__(self, data_folder):
-        self.data_folder = data_folder
+    def __init__(self, kitti_depth_completion_data_dir):
+        self.kitti_depth_completion_data_dir = kitti_depth_completion_data_dir
 
     @property
     @abstractmethod
@@ -25,11 +25,11 @@ class DataPathsHandler:
 
 
 class SplitDataPathsHandler(DataPathsHandler):
-    def __init__(self, split, subsplit, data_folder):
+    def __init__(self, split, subsplit, kitti_depth_completion_data_dir):
         self.split = split
         self.subsplit = subsplit
         self.handler_cls = find_data_paths_handler(split, subsplit)
-        self.handler = self.handler_cls(data_folder)
+        self.handler = self.handler_cls(kitti_depth_completion_data_dir)
 
     @property
     def paths_d(self) -> list[str]:
@@ -62,13 +62,13 @@ class AnonymousdDataPathsHandler(DataPathsHandler):
 
 
 class AnonymousCompletiondDataPathsHandler(AnonymousdDataPathsHandler):
-    def __init__(self, data_folder):
+    def __init__(self, kitti_depth_completion_data_dir):
         self.glob_img = os.path.join(
-            data_folder,
+            kitti_depth_completion_data_dir,
             "depth_selection/test_depth_completion_anonymous/image/*.png",
         )
         self.glob_d = os.path.join(
-            data_folder,
+            kitti_depth_completion_data_dir,
             "depth_selection/test_depth_completion_anonymous/velodyne_raw/*.png",
         )
         super().__init__(self.glob_img)
@@ -79,9 +79,9 @@ class AnonymousCompletiondDataPathsHandler(AnonymousdDataPathsHandler):
 
 
 class AnonymousPredictiondDataPathsHandler(AnonymousdDataPathsHandler):
-    def __init__(self, data_folder):
+    def __init__(self, kitti_depth_completion_data_dir):
         self.glob_img = os.path.join(
-            data_folder,
+            kitti_depth_completion_data_dir,
             "depth_selection/test_depth_prediction_anonymous/image/*.png",
         )
         super().__init__(self.glob_img)
@@ -114,14 +114,14 @@ class LabeledDataPathsHandler(DataPathsHandler):
 
 
 class TrainSplitDataPathsHandler(LabeledDataPathsHandler):
-    def __init__(self, data_folder):
-        self.data_folder = data_folder
+    def __init__(self, kitti_depth_completion_data_dir):
+        self.kitti_depth_completion_data_dir = kitti_depth_completion_data_dir
         self.glob_d = os.path.join(
-            data_folder,
+            kitti_depth_completion_data_dir,
             "data_depth_velodyne/train/*_sync/proj_depth/velodyne_raw/image_0[2,3]/*.png",
         )
         self.glob_gt = os.path.join(
-            data_folder,
+            kitti_depth_completion_data_dir,
             "data_depth_annotated/train/*_sync/proj_depth/groundtruth/image_0[2,3]/*.png",
         )
         super().__init__(self.glob_d, self.glob_gt)
@@ -129,7 +129,7 @@ class TrainSplitDataPathsHandler(LabeledDataPathsHandler):
     def get_img_paths(self, p):
         ps = p.split("/")
         pnew = "/".join(
-            [self.data_folder]
+            [self.kitti_depth_completion_data_dir]
             + ["data_rgb"]
             + ps[-6:-4]
             + ps[-2:-1]
@@ -140,13 +140,13 @@ class TrainSplitDataPathsHandler(LabeledDataPathsHandler):
 
 
 class ValFullSubsplitDataPathsHandler(LabeledDataPathsHandler):
-    def __init__(self, data_folder):
+    def __init__(self, kitti_depth_completion_data_dir):
         self.glob_d = os.path.join(
-            data_folder,
+            kitti_depth_completion_data_dir,
             "data_depth_velodyne/val/*_sync/proj_depth/velodyne_raw/image_0[2,3]/*.png",
         )
         self.glob_gt = os.path.join(
-            data_folder,
+            kitti_depth_completion_data_dir,
             "data_depth_annotated/val/*_sync/proj_depth/groundtruth/image_0[2,3]/*.png",
         )
         super().__init__(self.glob_d, self.glob_gt)
@@ -160,13 +160,13 @@ class ValFullSubsplitDataPathsHandler(LabeledDataPathsHandler):
 
 
 class ValSelectSubsplitDataPathsHandler(LabeledDataPathsHandler):
-    def __init__(self, data_folder):
+    def __init__(self, kitti_depth_completion_data_dir):
         self.glob_d = os.path.join(
-            data_folder,
+            kitti_depth_completion_data_dir,
             "depth_selection/val_selection_cropped/velodyne_raw/*.png",
         )
         self.glob_gt = os.path.join(
-            data_folder,
+            kitti_depth_completion_data_dir,
             "depth_selection/val_selection_cropped/groundtruth_depth/*.png",
         )
         super().__init__(self.glob_d, self.glob_gt)
