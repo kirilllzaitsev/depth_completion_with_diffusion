@@ -90,7 +90,95 @@ class SmoothnessLoss(nn.Module):
             der_2nd = horizontal.abs() + vertical.abs()
             return der_2nd.mean()
 
+
+class DepthLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, depth, target, mask):
+        """
+        Args:
+            depth: predicted dense depth map
+            target: sparse (input) depth map
+            mask: mask that has zeros at non-zero pixels of the sparse depth map
+        """
+        check_tensor_shapes_match(depth, target)
+        check_tensor_shapes_match(target, mask)
+        diff = ((target - depth) * mask).square()
+        self.loss = torch.sum(diff)
+
         self.loss = second_derivative(depth)
+
+class DepthLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, depth, target, mask):
+        """
+        Args:
+            depth: predicted dense depth map
+            target: sparse (input) depth map
+            mask: mask that has zeros at non-zero pixels of the sparse depth map
+        """
+        check_tensor_shapes_match(depth, target)
+        check_tensor_shapes_match(target, mask)
+        diff = ((target - depth) * mask).square()
+        self.loss = torch.sum(diff)
+
+        self.loss = second_derivative(depth)
+
+class DepthLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, depth, target, mask):
+        """
+        Args:
+            depth: predicted dense depth map
+            target: sparse (input) depth map
+            mask: mask that has zeros at non-zero pixels of the sparse depth map
+        """
+        check_tensor_shapes_match(depth, target)
+        check_tensor_shapes_match(target, mask)
+        diff = ((target - depth) * mask).square()
+        self.loss = torch.sum(diff)
+
+        self.loss = second_derivative(depth)
+
+class DepthLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, depth, target, mask):
+        """
+        Args:
+            depth: predicted dense depth map
+            target: sparse (input) depth map
+            mask: mask that has zeros at non-zero pixels of the sparse depth map
+        """
+        check_tensor_shapes_match(depth, target)
+        check_tensor_shapes_match(target, mask)
+        diff = ((target - depth) * mask).square()
+        self.loss = torch.sum(diff)
+
+        self.loss = second_derivative(depth)
+
+class DepthLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, depth, target, mask):
+        """
+        Args:
+            depth: predicted dense depth map
+            target: sparse (input) depth map
+            mask: mask that has zeros at non-zero pixels of the sparse depth map
+        """
+        check_tensor_shapes_match(depth, target)
+        check_tensor_shapes_match(target, mask)
+        diff = ((target - depth) * mask).square()
+        self.loss = torch.sum(diff)
+
         return self.loss
 
 if __name__ == "__main__":
