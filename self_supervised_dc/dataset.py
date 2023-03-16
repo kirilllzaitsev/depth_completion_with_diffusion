@@ -19,7 +19,7 @@ class DCDataModule(pl.LightningDataModule):
         )
 
     def setup(self, stage=None):
-        self.dataset = hydra.utils.instantiate(self.config.dataset, self.config)
+        self.dataset: torch.utils.data.Dataset = hydra.utils.instantiate(self.config.dataset, self.config)
 
     def train_dataloader(self):
         return torch.utils.data.DataLoader(

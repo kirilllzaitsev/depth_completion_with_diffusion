@@ -2,6 +2,28 @@
 
 ## Contents
 
+## Installation
+
+### Pre-requisites
+
+- Python >=3.7
+- Poetry ~=1.4.0
+
+```bash
+python --version
+curl -sSL https://install.python-poetry.org | python -
+```
+
+### Python dependencies
+
+```bash
+poetry install
+```
+
+## Usage
+
+poetry run -m self_supervised_dc.main
+
 ## TODO
 
 - [ ] Add code for working with NYUv2 dataset
