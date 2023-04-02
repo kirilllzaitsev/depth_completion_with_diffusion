@@ -17,8 +17,7 @@ def convert_2d_to_3d(u, v, z, K):
 
 
 def feature_match(img1, img2):
-    r''' Find features on both images and match them pairwise
-   '''
+    r"""Find features on both images and match them pairwise"""
     max_n_features = 1000
     # max_n_features = 500
     use_flann = False  # better not use flann
@@ -41,7 +40,7 @@ def feature_match(img1, img2):
         flann = cv2.FlannBasedMatcher(index_params, search_params)
         matches = flann.knnMatch(des1, des2, k=2)
     else:
-        matcher = cv2.DescriptorMatcher().create('BruteForce')
+        matcher = cv2.DescriptorMatcher().create("BruteForce")
         matches = matcher.knnMatch(des1, des2, k=2)
 
     good = []
@@ -64,8 +63,7 @@ def get_pose_pnp(rgb_curr, rgb_near, depth_curr, K):
     gray_near = rgb2gray(rgb_near).astype(np.uint8)
     height, width = gray_curr.shape
 
-    pts2d_curr, pts2d_near = feature_match(gray_curr,
-                                           gray_near)  # feature matching
+    pts2d_curr, pts2d_near = feature_match(gray_curr, gray_near)  # feature matching
 
     # dilation of depth
     kernel = np.ones((4, 4), np.uint8)
@@ -73,8 +71,7 @@ def get_pose_pnp(rgb_curr, rgb_near, depth_curr, K):
 
     # extract 3d pts
     pts3d_curr = []
-    pts2d_near_filtered = [
-    ]  # keep only feature points with depth in the current frame
+    pts2d_near_filtered = []  # keep only feature points with depth in the current frame
     for i, pt2d in enumerate(pts2d_curr):
         # print(pt2d)
         u, v = pt2d[0], pt2d[1]
@@ -86,16 +83,13 @@ def get_pose_pnp(rgb_curr, rgb_near, depth_curr, K):
 
     # the minimal number of points accepted by solvePnP is 4:
     if len(pts3d_curr) >= 4 and len(pts2d_near_filtered) >= 4:
-        pts3d_curr = np.expand_dims(np.array(pts3d_curr).astype(np.float32),
-                                    axis=1)
+        pts3d_curr = np.expand_dims(np.array(pts3d_curr).astype(np.float32), axis=1)
         pts2d_near_filtered = np.expand_dims(
-            np.array(pts2d_near_filtered).astype(np.float32), axis=1)
+            np.array(pts2d_near_filtered).astype(np.float32), axis=1
+        )
 
         # ransac
-        ret = cv2.solvePnPRansac(pts3d_curr,
-                                 pts2d_near_filtered,
-                                 K,
-                                 distCoeffs=None)
+        ret = cv2.solvePnPRansac(pts3d_curr, pts2d_near_filtered, K, distCoeffs=None)
         success = ret[0]
         rotation_vector = ret[1]
         translation_vector = ret[2]

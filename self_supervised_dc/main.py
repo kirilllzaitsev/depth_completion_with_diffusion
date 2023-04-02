@@ -1,4 +1,3 @@
-
 import os
 import pathlib
 import hydra
@@ -19,7 +18,6 @@ def main(config: oc.DictConfig) -> None:
         config.use_g = "g" in config.input
     dm = DCDataModule(config)
     dm.setup()
-    print(len(dm.dataset))
 
 
 if __name__ == "__main__":
