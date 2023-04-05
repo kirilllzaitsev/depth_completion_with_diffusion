@@ -22,3 +22,7 @@ pre-commit      # hooks for applying linters on commit
 rich            # beautiful text formatting in terminal
 pytest          # tests
 # sh            # for running bash commands in some tests (linux/macos only)
+
+opencv-python==4.7.0.72
+opencv-contrib-python==4.7.0.72
+scikit-image==0.18.2

@@ -4,7 +4,7 @@ import pytest
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import open_dict
 
-from src.train import train
+from rsl_depth_completion.train import train
 from tests.helpers.run_if import RunIf
 
 

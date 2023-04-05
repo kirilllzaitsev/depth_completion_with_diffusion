@@ -4,8 +4,8 @@ import pytest
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import open_dict
 
-from src.eval import evaluate
-from src.train import train
+from rsl_depth_completion.eval import evaluate
+from rsl_depth_completion.train import train
 
 
 @pytest.mark.slow
