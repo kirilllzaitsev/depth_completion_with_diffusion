@@ -1,0 +1,15 @@
+_target_: rsl_depth_completion.data.kitti_datamodule.KittiDataModule
+data_dir: ${paths.data_dir}/kitti-full
+batch_size: 2
+train_val_test_split: [55_000, 5_000, 10_000]
+num_workers: 0
+pin_memory: False
+ds_config:
+  path_to_calib_files: ${paths.data_dir}/kitti-calibration
+  path_to_depth_completion_dir: ${paths.data_dir}/kitti-full/kitti-depth-completion
+  train_mode: dense+photo
+  input: gd
+  split: train
+  subsplit: select
+  n_adjacent: 1
+  jitter: 0.1

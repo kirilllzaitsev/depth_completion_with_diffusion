@@ -1,0 +1,61 @@
+_target_: rsl_depth_completion.models.benchmarking_adapters.KBnetLitModule
+
+net:
+  activation_func: leaky_relu
+  deconv_type: up
+  device: cuda
+  input_channels_depth: 2
+  input_channels_image: 3
+  max_pool_sizes_sparse_to_dense_pool:
+    - 15
+    - 17
+  max_predict_depth: 100.0
+  min_pool_sizes_sparse_to_dense_pool:
+    - 5
+    - 7
+    - 9
+    - 11
+    - 13
+  min_predict_depth: 1.5
+  n_convolution_sparse_to_dense_pool: 3
+  n_filter_sparse_to_dense_pool: 8
+  n_filters_decoder:
+    - 256
+    - 128
+    - 128
+    - 64
+    - 12
+  n_filters_encoder_depth:
+    - 16
+    - 32
+    - 64
+    - 128
+    - 128
+  n_filters_encoder_image:
+    - 48
+    - 96
+    - 192
+    - 384
+    - 384
+  resolutions_backprojection:
+    - 0
+    - 1
+    - 2
+    - 3
+  weight_initializer: xavier_normal
+data:
+  depth_model_restore_path: /media/master/MyPassport/msc_studies/second_semester/research_project/related_work/calibrated-backprojection-network/pretrained_models/kitti/kbnet-kitti.pth
+  ground_truth_path: /media/master/text/cv_data/kitti-full/data/train_val_test_file_paths/validation/kitti_val_ground_truth.txt
+  image_path: /media/master/text/cv_data/kitti-full/data/train_val_test_file_paths/validation/kitti_val_image.txt
+  intrinsics_path: /media/master/text/cv_data/kitti-full/data/train_val_test_file_paths/validation/kitti_val_intrinsics.txt
+  save_outputs: true
+  output_path: /media/master/MyPassport/msc_studies/second_semester/research_project/related_work/calibrated-backprojection-network/results/kitti_dc_val
+  sparse_depth_path: /media/master/text/cv_data/kitti-full/data/train_val_test_file_paths/validation/kitti_val_sparse_depth.txt
+  keep_input_filenames: false
+  max_evaluate_depth: 100.0
+  min_evaluate_depth: 0.0
+  normalized_image_range:
+    - 0.0
+    - 1.0
+  outlier_removal_kernel_size: 7
+  outlier_removal_threshold: 1.5
