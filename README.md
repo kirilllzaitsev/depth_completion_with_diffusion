@@ -1,6 +1,6 @@
 # Official repository for the paper TBA
 
-## **NOTE!**. The master branch is outdated and is no longer updated. The **main** branch is 'main'.
+## **NOTE!** The master branch is outdated and is no longer updated. The **main** branch is 'main'.
 
 ## Contents
 
