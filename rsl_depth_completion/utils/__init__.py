@@ -1,4 +1,7 @@
-from rsl_depth_completion.utils.instantiators import instantiate_callbacks, instantiate_loggers
+from rsl_depth_completion.utils.instantiators import (
+    instantiate_callbacks,
+    instantiate_loggers,
+)
 from rsl_depth_completion.utils.logging_utils import log_hyperparameters
 from rsl_depth_completion.utils.pylogger import get_pylogger
 from rsl_depth_completion.utils.rich_utils import enforce_tags, print_config_tree

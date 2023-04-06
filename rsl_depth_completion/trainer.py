@@ -1,7 +1,11 @@
 # from lightning.pytorch.trainer import Trainer
 import lightning
+import lightning.pytorch.trainer
 import torch
-from rsl_depth_completion.models.benchmarking_adapters import KBnetLitModule
+
+from rsl_depth_completion.models.benchmarking.adapters.kbnet_module import (
+    KBnetLitModule,
+)
 
 
 class Trainer(lightning.pytorch.trainer.Trainer):

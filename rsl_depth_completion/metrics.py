@@ -38,14 +38,18 @@ class TotalMetric(Metric):
         self.add_state("rmse", default=torch.tensor(0).float(), dist_reduce_fx="sum")
         self.add_state("imae", default=torch.tensor(0).float(), dist_reduce_fx="sum")
         self.add_state("irmse", default=torch.tensor(0).float(), dist_reduce_fx="sum")
+        self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
 
     def update(self, preds: torch.Tensor, target: torch.Tensor):
-        preds = preds.detach().cpu().numpy() if isinstance(preds, torch.Tensor) else preds
+        preds = (
+            preds.detach().cpu().numpy() if isinstance(preds, torch.Tensor) else preds
+        )
         target = target.cpu().numpy() if isinstance(target, torch.Tensor) else target
         self.mae += eval_utils.mean_abs_err(1000.0 * preds, 1000.0 * target)
         self.rmse += eval_utils.root_mean_sq_err(1000.0 * preds, 1000.0 * target)
         self.imae += eval_utils.inv_mean_abs_err(0.001 * preds, 0.001 * target)
         self.irmse += eval_utils.inv_root_mean_sq_err(0.001 * preds, 0.001 * target)
+        self.total += target.shape[0]
 
     def compute(self):
         return self.mae, self.rmse, self.imae, self.irmse
