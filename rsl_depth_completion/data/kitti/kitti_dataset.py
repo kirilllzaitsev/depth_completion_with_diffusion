@@ -25,7 +25,14 @@ class KittiDCDataset(torch.utils.data.Dataset):
 
     """
 
-    def __init__(self, ds_config, path_to_depth_completion_dir, path_to_calib_files, *args,**kwargs):
+    def __init__(
+        self,
+        ds_config,
+        path_to_depth_completion_dir,
+        path_to_calib_files,
+        *args,
+        **kwargs,
+    ):
         self.config = ds_config
         self.split = ds_config.split
         self.subsplit = (
