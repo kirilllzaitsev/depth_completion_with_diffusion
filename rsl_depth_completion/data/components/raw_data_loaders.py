@@ -39,13 +39,24 @@ def depth_read(filename):
     return depth
 
 
-def get_paths_and_transform(
-    split, subsplit, kitti_depth_completion_data_dir, config
-) -> (list, Transform):
+def get_input_paths(split, subsplit, kitti_depth_completion_data_dir, config) -> dict:
     assert config.use_d or config.use_img or config.use_g, "no proper input selected"
     data_paths_handler = SplitDataPathsHandler(
         split, subsplit, kitti_depth_completion_data_dir
     )
+
+    paths_img, paths_d, paths_gt = (
+        data_paths_handler.paths_img,
+        data_paths_handler.paths_d,
+        data_paths_handler.paths_gt,
+    )
+    validate_paths(config, paths_img, paths_d, paths_gt)
+
+    paths = {"img": paths_img, "d": paths_d, "gt": paths_gt}
+    return paths
+
+
+def get_data_transform(split, subsplit, config) -> Transform:
     if split == "train":
         transform = TrainTransform(config)
     elif split == "val":
@@ -56,22 +67,13 @@ def get_paths_and_transform(
         else:
             raise ValueError("Unrecognized val subsplit " + str(subsplit))
     elif split == "test":
-        if subsplit in ["completion", "prediction"]:
+        if subsplit in ["completion", "prediction", "custom"]:
             transform = DummyTransform(config)
         else:
             raise ValueError("Unrecognized test subsplit " + str(subsplit))
     else:
         raise ValueError("Unrecognized split " + str(split))
-
-    paths_img, paths_d, paths_gt = (
-        data_paths_handler.paths_img,
-        data_paths_handler.paths_d,
-        data_paths_handler.paths_gt,
-    )
-    validate_paths(config, paths_img, paths_d, paths_gt)
-
-    paths = {"img": paths_img, "d": paths_d, "gt": paths_gt}
-    return paths, transform
+    return transform
 
 
 def validate_paths(
@@ -87,13 +89,6 @@ def validate_paths(
         raise (RuntimeError("Requested gray images but no img was found"))
     if len(paths_img) != len(paths_d) or len(paths_img) != len(paths_gt):
         logging.error(f"{len(paths_img)=}\t{len(paths_d)=}\t{len(paths_gt)=}")
-        import pickle
-
-        with open(
-            "/media/master/MyPassport/msc_studies/second_semester/research_project/eda/debug/paths.pkl",
-            "wb",
-        ) as f:
-            pickle.dump((paths_img, paths_d, paths_gt), f)
         raise (RuntimeError("Produced different sizes for datasets"))
 
 
