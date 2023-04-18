@@ -6,7 +6,6 @@ import random
 import cv2
 import numpy as np
 import torch
-
 from rsl_depth_completion.data.components import camera_calibration as calib
 from rsl_depth_completion.data.components import custom_transforms as transforms
 from rsl_depth_completion.data.components import pose_estimator as pose
@@ -15,7 +14,7 @@ from rsl_depth_completion.data.components.adjacent_img_handler import get_adj_im
 from rsl_depth_completion.data.components.data_logging import logger
 
 
-class KittiDCDataset(torch.utils.data.Dataset):
+class BaseKittiDCDataset(torch.utils.data.Dataset):
     """
     Loads the KITTI dataset for depth completion.
     One item:
@@ -28,8 +27,6 @@ class KittiDCDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         ds_config,
-        path_to_depth_completion_dir,
-        path_to_calib_files,
         *args,
         **kwargs,
     ):
@@ -38,43 +35,28 @@ class KittiDCDataset(torch.utils.data.Dataset):
         self.subsplit = (
             ds_config.subsplit if ds_config.subsplit is not None else "train"
         )
-        self.paths, self.transform = dl.get_paths_and_transform(
-            self.split, self.subsplit, path_to_depth_completion_dir, ds_config
-        )
-        self.K = calib.load_calib(path_to_calib_files)
         self.threshold_translation = 0.1
+        self.paths = self.get_input_paths()
+        self.transform = self.get_data_transform()
+        self.K = self.self_load_intrinsic_calibration_matrix()
+
+    def self_load_intrinsic_calibration_matrix(
+        self,
+    ):
+        raise NotImplementedError
+
+    def get_input_paths(
+        self,
+    ):
+        raise NotImplementedError
+
+    def get_data_transform(
+        self,
+    ):
+        raise NotImplementedError
 
     def load_sample(self, index):
-        img = (
-            dl.img_read(self.paths["img"][index])
-            if (
-                self.paths["img"][index] is not None
-                and (self.config.use_rgb or self.config.use_g)
-            )
-            else None
-        )
-        sparse_dm = (
-            dl.depth_read(self.paths["d"][index])
-            if (self.paths["d"][index] is not None and self.config.use_d)
-            else None
-        )
-        dense_dm = (
-            dl.depth_read(self.paths["gt"][index])
-            if self.paths["gt"][index] is not None
-            else None
-        )
-        adj_imgs = (
-            get_adj_imgs(self.paths["img"][index], self.config)
-            if self.split == "train" and self.config.use_pose
-            else None
-        )
-
-        return {
-            "img": img,
-            "sparse_dm": sparse_dm,
-            "dense_dm": dense_dm,
-            "adj_imgs": adj_imgs,
-        }
+        raise NotImplementedError
 
     def __getitem__(self, index):
         """
@@ -121,9 +103,9 @@ class KittiDCDataset(torch.utils.data.Dataset):
             for key, val in candidates.items()
             if val is not None
         }
-        candidates["adj_imgs"] = torch.stack(adj_imgs, dim=0).float()
-        candidates["r_mats"] = torch.stack(r_mats, dim=0).float()
-        candidates["t_vecs"] = torch.stack(t_vecs, dim=0).float()
+        items["adj_imgs"] = torch.stack(adj_imgs, dim=0).float()
+        items["r_mats"] = torch.stack(r_mats, dim=0).float()
+        items["t_vecs"] = torch.stack(t_vecs, dim=0).float()
 
         return items
 
@@ -140,3 +122,97 @@ class KittiDCDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.paths["gt"])
+
+
+class KittiDCDataset(BaseKittiDCDataset):
+    """
+    Loads the KITTI dataset for depth completion.
+    One item:
+        frame: (3, img_height, img_width)
+        adjacent_frames: (frame-to-the-left, frame-to-the-right) with the same shape as frame
+        depth: sparse_dm depth map of shape (1, img_height, img_width)
+
+    """
+
+    def __init__(
+        self,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+
+    def self_load_intrinsic_calibration_matrix(
+        self,
+    ):
+        return calib.load_calib(self.config.path_to_calib_files)
+
+    def get_input_paths(
+        self,
+    ):
+        return dl.get_input_paths(
+            self.split,
+            self.subsplit,
+            self.config.path_to_depth_completion_dir,
+            self.config,
+        )
+
+    def get_data_transform(
+        self,
+    ):
+        return dl.get_data_transform(self.split, self.subsplit, self.config)
+
+
+class CustomKittiDCDataset(BaseKittiDCDataset):
+    """
+    Loads the KITTI dataset for depth completion.
+    One item:
+        frame: (3, img_height, img_width)
+        adjacent_frames: (frame-to-the-left, frame-to-the-right) with the same shape as frame
+        depth: sparse_dm depth map of shape (1, img_height, img_width)
+
+    """
+
+    def __init__(
+        self,
+        image_paths,
+        sparse_depth_paths,
+        intrinsics_paths,
+        ground_truth_paths=None,
+        transform=None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.image_paths = image_paths
+        self.sparse_depth_paths = sparse_depth_paths
+        self.intrinsics_paths = intrinsics_paths
+        self.ground_truth_paths = ground_truth_paths
+        self.transform = transform
+
+        self.validate_paths()
+
+    def self_load_intrinsic_calibration_matrix(
+        self,
+    ):
+        """As intrinsics is used to estimate [R|t], could get it at __getitem__ based on index, if
+        there are multiple items in the intrinsics_paths."""
+        return np.load(self.intrinsics_paths[0]).astype(np.float32)
+
+    def validate_paths(self):
+        assert len(self.image_paths) == len(self.sparse_depth_paths)
+        if self.ground_truth_paths is not None:
+            assert len(self.image_paths) == len(self.ground_truth_paths)
+
+    def get_input_paths(
+        self,
+    ):
+        return {
+            "img": self.image_paths,
+            "d": self.sparse_depth_paths,
+            "gt": self.ground_truth_paths,
+        }
+
+    def get_data_transform(
+        self,
+    ):
+        return None
