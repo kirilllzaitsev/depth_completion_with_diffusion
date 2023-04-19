@@ -7,9 +7,6 @@ import torch.nn.functional as F
 import torchvision.transforms as T
 from einops import rearrange, repeat
 from einops_exts import check_shape
-from torch import nn
-from tqdm import tqdm
-
 from minimagen.diffusion_model import GaussianDiffusion
 from minimagen.helpers import (
     cast_tuple,
@@ -27,6 +24,8 @@ from minimagen.helpers import (
 )
 from minimagen.t5 import get_encoded_dim, t5_encode_text
 from minimagen.Unet import Unet
+from torch import nn
+from tqdm import tqdm
 
 
 class Imagen(nn.Module):
@@ -750,11 +749,32 @@ if __name__ == "__main__":
         Unet(**params["unet_super_resolution"]).to(device),
     ]
 
+    import numpy as np
+    import requests
+    import torch
+    from PIL import Image
+    from transformers import CLIPModel, CLIPProcessor
+
+    model_ref = "openai/clip-vit-base-patch32"
+    model = CLIPModel.from_pretrained(model_ref)
+    processor = CLIPProcessor.from_pretrained(model_ref)
+    url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+    image = Image.open(requests.get(url, stream=True).raw)
+    pixel_values = processor(
+        images=torch.stack(
+            [torch.from_numpy(np.array(image)), torch.from_numpy(np.array(image))]
+        ),
+        return_tensors="pt",
+    ).pixel_values
+    embedding = model.get_image_features(pixel_values=pixel_values)
+    embedding = embedding.unsqueeze(1)
+
     # Create Imagen from UNets with specified imagen parameters
     imagen = Imagen(unets=unets, **params["imagen_parameters"]).to(device)
     images = torch.randn(2, 3, 128, 128).to(device)
-    encoding = torch.randn(2, 14, 512).to(device)
-    mask = torch.ones(2, 14).bool().to(device)
+    # encoding = torch.randn(2, 14, 512).to(device)
+    encoding = embedding.to(device)
+    mask = torch.ones(2, 1).bool().to(device)
     for unet_idx in range(len(unets)):
         loss = imagen(
             images,
