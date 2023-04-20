@@ -23,9 +23,11 @@ from minimagen.helpers import (
     unnormalize_zero_to_one,
 )
 from minimagen.t5 import get_encoded_dim, t5_encode_text
-from minimagen.Unet import Unet
+from rsl_depth_completion.conditional_diffusion.Unet import Unet
 from torch import nn
 from tqdm import tqdm
+
+from rsl_depth_completion.conditional_diffusion.train_utils import pad_tensor, concatenate_tensors
 
 
 class Imagen(nn.Module):
@@ -621,6 +623,7 @@ class Imagen(nn.Module):
             lowres_cond_img=lowres_cond_img_noisy,
             cond_drop_prob=self.cond_drop_prob,
         )
+        noise = pad_tensor(noise, pred)
 
         # Return loss between prediction and ground truth
         return self.loss_fn(pred, noise)
@@ -767,14 +770,15 @@ if __name__ == "__main__":
         return_tensors="pt",
     ).pixel_values
     embedding = model.get_image_features(pixel_values=pixel_values)
-    embedding = embedding.unsqueeze(1)
+    embedding = embedding.unsqueeze(1).to(device)
+    encoding = embedding
+    mask = torch.ones(2, 1).bool().to(device)
 
     # Create Imagen from UNets with specified imagen parameters
     imagen = Imagen(unets=unets, **params["imagen_parameters"]).to(device)
-    images = torch.randn(2, 3, 128, 128).to(device)
+    # images = torch.randn(2, 3, 128, 128).to(device)
+    images = torch.randn(2, 1, 352, 1216).to(device)
     # encoding = torch.randn(2, 14, 512).to(device)
-    encoding = embedding.to(device)
-    mask = torch.ones(2, 1).bool().to(device)
     for unet_idx in range(len(unets)):
         loss = imagen(
             images,
