@@ -10,6 +10,13 @@ class CustomKBNetInferenceDataset(KBNetInferenceDataset):
         )
         super().__init__(*args, **kwargs)
 
+    def __len__(self):
+        return min(
+            len(self.image_paths),
+            len(self.sparse_depth_paths),
+            len(self.intrinsics_paths),
+        )
+
     def __getitem__(self, index):
         image, sparse_depth, intrinsics = super().__getitem__(index)
         if self.ground_truth_paths is not None:

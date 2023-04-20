@@ -9,13 +9,13 @@ from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision.transforms import transforms
 
 from rsl_depth_completion.data.kbnet import kbnet_dataset
+from kbnet.datasets import KBNetTrainingDataset
 
 
 class KBnetDataModule(LightningDataModule):
     def __init__(
         self,
         data_dir: str = "data/",
-        train_val_test_split: Tuple[int, int, int] = (55_000, 5_000, 10_000),
         batch_size: int = 64,
         num_workers: int = 0,
         pin_memory: bool = False,
@@ -26,11 +26,6 @@ class KBnetDataModule(LightningDataModule):
         # this line allows to access init params with 'self.hparams' attribute
         # also ensures init params will be stored in ckpt
         self.save_hyperparameters(logger=False)
-
-        # data transformations
-        self.transforms = transforms.Compose(
-            [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
-        )
 
         self.data_train: Optional[Dataset] = None
         self.data_val: Optional[Dataset] = None
@@ -77,7 +72,7 @@ class KBnetDataModule(LightningDataModule):
                 ds_config.test_intrinsics_path
             )
 
-            trainset = kbnet_dataset.KBNetTrainingDataset(
+            trainset = KBNetTrainingDataset(
                 image_paths=train_image_paths,
                 sparse_depth_paths=train_sparse_depth_paths,
                 intrinsics_paths=train_intrinsics_paths,

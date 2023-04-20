@@ -76,6 +76,12 @@ def get_data_transform(split, subsplit, config) -> Transform:
     return transform
 
 
+def get_paths_and_transform(split, subsplit, path_to_depth_completion_dir, ds_config):
+    paths = get_input_paths(split, subsplit, path_to_depth_completion_dir, ds_config)
+    transform = get_data_transform(split, subsplit, ds_config)
+    return paths, transform
+
+
 def validate_paths(
     config, paths_img: list[str], paths_d: list[str], paths_gt: list[str]
 ):
