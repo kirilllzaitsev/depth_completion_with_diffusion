@@ -2,10 +2,8 @@ from dataclasses import dataclass
 
 import torch
 from rsl_depth_completion.diffusion.configs import DiffusionConfig
-from rsl_depth_completion.diffusion.diffusion_utils import extract
+from rsl_depth_completion.diffusion.utils import extract
 from tqdm import tqdm
-
-
 
 
 @torch.no_grad()
@@ -16,8 +14,6 @@ def p_sample(model, x, t, t_index, diffusion_config: DiffusionConfig):
     )
     sqrt_recip_alphas_t = extract(diffusion_config.sqrt_recip_alphas, t, x.shape)
 
-    # Equation 11 in the paper
-    # Use our model (noise predictor) to predict the mean
     model_mean = sqrt_recip_alphas_t * (
         x - betas_t * model(x, t) / sqrt_one_minus_alphas_cumprod_t
     )
@@ -27,17 +23,14 @@ def p_sample(model, x, t, t_index, diffusion_config: DiffusionConfig):
     else:
         posterior_variance_t = extract(diffusion_config.posterior_variance, t, x.shape)
         noise = torch.randn_like(x)
-        # Algorithm 2 line 4:
         return model_mean + torch.sqrt(posterior_variance_t) * noise
 
 
-# Algorithm 2 but save all images:
 @torch.no_grad()
 def p_sample_loop(model, shape, timesteps, diffusion_config: DiffusionConfig):
     device = next(model.parameters()).device
 
     b = shape[0]
-    # start from pure noise (for each example in the batch)
     img = torch.randn(shape, device=device)
     imgs = []
 

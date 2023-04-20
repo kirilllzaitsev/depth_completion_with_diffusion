@@ -1,24 +1,24 @@
-import torch
-
-from rsl_depth_completion.diffusion.configs import DiffusionConfig
-
-
-def extract(a, t, x_shape):
-    batch_size = t.shape[0]
-    out = a.gather(-1, t.cpu())
-    return out.reshape(batch_size, *((1,) * (len(x_shape) - 1))).to(t.device)
+import matplotlib.animation as animation
+import matplotlib.pyplot as plt
+import numpy as np
 
 
-# forward diffusion
-def q_sample(x_start, t, diffusion_config:DiffusionConfig, noise=None):
-    if noise is None:
-        noise = torch.randn_like(x_start)
+def animate_diffusion(samples, timesteps, valid_img_shape):
+    random_index = np.random.randint(0, samples[0].shape[0])
 
-    sqrt_alphas_cumprod_t = extract(
-        diffusion_config.sqrt_alphas_cumprod, t, x_start.shape
+    fig = plt.figure()
+    ims = []
+    for i in range(timesteps):
+        # valid_img_shape = image_size, image_size, channels
+        im = plt.imshow(
+            samples[i][random_index].reshape(valid_img_shape),
+            cmap="gray",
+            animated=True,
+        )
+        ims.append([im])
+
+    animate = animation.ArtistAnimation(
+        fig, ims, interval=50, blit=True, repeat_delay=1000
     )
-    sqrt_one_minus_alphas_cumprod_t = extract(
-        diffusion_config.sqrt_one_minus_alphas_cumprod, t, x_start.shape
-    )
-
-    return sqrt_alphas_cumprod_t * x_start + sqrt_one_minus_alphas_cumprod_t * noise
+    animate.save("diffusion.gif")
+    plt.show()
