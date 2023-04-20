@@ -1,11 +1,11 @@
 from typing import Any
 
+import numpy as np
 import torch
 from kbnet.kbnet_model import KBNetModel
 from kbnet.net_utils import OutlierRemoval
 from lightning import LightningModule
 from rsl_depth_completion.metrics import TotalMetric
-import numpy as np
 
 
 class KBnetLitModule(LightningModule):
@@ -15,10 +15,11 @@ class KBnetLitModule(LightningModule):
         outlier_removal: OutlierRemoval,
         transforms: dict,
         config: Any,
+        ckpt_path: str = None,
     ):
         super().__init__()
 
-        self.save_hyperparameters(logger=False)
+        self.save_hyperparameters(logger=True)
 
         self.net = net
         self.outlier_removal = outlier_removal
@@ -76,7 +77,6 @@ class KBnetLitModule(LightningModule):
         return output_depth
 
     def eval_step(self, batch: Any, batch_idx: int):
-
         ground_truth = batch.pop().cpu().numpy()
         output_depth = self.model_step(batch, self.val_transforms)
         output_depth = np.squeeze(output_depth.detach().cpu().numpy())
@@ -104,13 +104,16 @@ class KBnetLitModule(LightningModule):
     def test_step(self, batch: Any, batch_idx: int):
         output_depth, ground_truth = self.eval_step(batch, batch_idx)
         mae, rmse, imae, irmse = self.test_total(output_depth, ground_truth)
-        self.log("test/mae", mae, on_step=False, on_epoch=True, prog_bar=True)
+        self.log(
+            "test/mae", mae, on_step=False, on_epoch=True, prog_bar=True, logger=True
+        )
         self.log(
             "test/rmse",
             rmse,
             on_step=False,
             on_epoch=True,
             prog_bar=True,
+            logger=True,
         )
         self.log(
             "test/imae",
@@ -118,6 +121,7 @@ class KBnetLitModule(LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
+            logger=True,
         )
         self.log(
             "test/irmse",
@@ -125,6 +129,7 @@ class KBnetLitModule(LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
+            logger=True,
         )
 
     def on_test_epoch_end(self):
