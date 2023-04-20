@@ -1,0 +1,24 @@
+_target_: rsl_depth_completion.data.custom_kitti_datamodule.KittiDataModule
+data_dir: ${paths.data_dir}/kitti-full
+forest_data_dir: ${paths.forest_data_dir}/forest
+batch_size: 1
+num_workers: 20
+pin_memory: False
+ds_config:
+  train_mode: dense+photo
+  input: gd
+  n_adjacent: 1
+  jitter: 0.1
+  result_dir: ${paths.output_dir}/results
+
+  val_image_path: ${data_dir}/data/train_val_test_file_paths_raw/validation/kitti_val_image.txt
+  val_intrinsics_path: ${data_dir}/data/train_val_test_file_paths_raw/validation/kitti_val_intrinsics.txt
+  val_sparse_depth_path: ${data_dir}/data/train_val_test_file_paths_raw/validation/kitti_val_sparse_depth.txt
+  val_ground_truth_path: ${data_dir}/data/train_val_test_file_paths_raw/validation/kitti_val_ground_truth.txt
+
+  test_image_path: ${forest_data_dir}/kitti_format_subsample/paths/image.txt
+  test_intrinsics_path: ${forest_data_dir}/kitti_format_subsample/paths/intrinsics.txt
+  test_sparse_depth_path: ${forest_data_dir}/kitti_format_subsample/paths/sparse_depth.txt
+
+  split: val
+  subsplit: select

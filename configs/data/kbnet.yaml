@@ -1,9 +1,8 @@
 _target_: rsl_depth_completion.data.kbnet_datamodule.KBnetDataModule
 data_dir: ${paths.data_dir}/kitti-full
+forest_data_dir: ${paths.forest_data_dir}/forest
 batch_size: 1
-train_val_test_split: [55_000, 5_000, 10_000]
-# num_workers: 20
-num_workers: 1
+num_workers: 20
 pin_memory: False
 ds_config:
   shape: [320, 768]
@@ -12,19 +11,23 @@ ds_config:
   input_channels_depth: 2
   input_channels_image: 3
 
-  train_image_path: /media/master/text/cv_data/kitti-full/data/train_val_test_file_paths/training/kitti_train_image.txt
-  train_intrinsics_path: /media/master/text/cv_data/kitti-full/data/train_val_test_file_paths/training/kitti_train_intrinsics.txt
-  train_sparse_depth_path: /media/master/text/cv_data/kitti-full/data/train_val_test_file_paths/training/kitti_train_sparse_depth.txt
-  train_ground_truth_path: /media/master/text/cv_data/kitti-full/data/train_val_test_file_paths/training/kitti_train_ground_truth.txt
+  train_image_path: ${data_dir}/data/train_val_test_file_paths_kbnet/training/kitti_train_image.txt
+  train_intrinsics_path: ${data_dir}/data/train_val_test_file_paths_kbnet/training/kitti_train_intrinsics.txt
+  train_sparse_depth_path: ${data_dir}/data/train_val_test_file_paths_kbnet/training/kitti_train_sparse_depth.txt
+  train_ground_truth_path: ${data_dir}/data/train_val_test_file_paths_kbnet/training/kitti_train_ground_truth.txt
 
-  val_image_path: /media/master/text/cv_data/kitti-full/data/train_val_test_file_paths/validation/kitti_val_image.txt
-  val_intrinsics_path: /media/master/text/cv_data/kitti-full/data/train_val_test_file_paths/validation/kitti_val_intrinsics.txt
-  val_sparse_depth_path: /media/master/text/cv_data/kitti-full/data/train_val_test_file_paths/validation/kitti_val_sparse_depth.txt
-  val_ground_truth_path: /media/master/text/cv_data/kitti-full/data/train_val_test_file_paths/validation/kitti_val_ground_truth.txt
+  val_image_path: ${data_dir}/data/train_val_test_file_paths_kbnet/validation/kitti_val_image.txt
+  val_intrinsics_path: ${data_dir}/data/train_val_test_file_paths_kbnet/validation/kitti_val_intrinsics.txt
+  val_sparse_depth_path: ${data_dir}/data/train_val_test_file_paths_kbnet/validation/kitti_val_sparse_depth.txt
+  val_ground_truth_path: ${data_dir}/data/train_val_test_file_paths_kbnet/validation/kitti_val_ground_truth.txt
 
-  test_image_path: /media/master/text/cv_data/kitti-full/data/train_val_test_file_paths/testing/kitti_test_image.txt
-  test_intrinsics_path: /media/master/text/cv_data/kitti-full/data/train_val_test_file_paths/testing/kitti_test_intrinsics.txt
-  test_sparse_depth_path: /media/master/text/cv_data/kitti-full/data/train_val_test_file_paths/testing/kitti_test_sparse_depth.txt
+  # test_image_path: ${data_dir}/data/train_val_test_file_paths_kbnet/testing/kitti_test_image.txt
+  # test_intrinsics_path: ${data_dir}/data/train_val_test_file_paths_kbnet/testing/kitti_test_intrinsics.txt
+  # test_sparse_depth_path: ${data_dir}/data/train_val_test_file_paths_kbnet/testing/kitti_test_sparse_depth.txt
+
+  test_image_path: ${forest_data_dir}/kbnet_subsample/paths/image.txt
+  test_intrinsics_path: ${forest_data_dir}/kbnet_subsample/paths/intrinsics.txt
+  test_sparse_depth_path: ${forest_data_dir}/kbnet_subsample/paths/sparse_depth.txt
   
   
   

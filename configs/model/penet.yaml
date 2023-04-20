@@ -30,7 +30,6 @@ net:
   activation_func: leaky_relu
   deconv_type: up
   device: cuda
-  # device: cpu
   input_channels_depth: 2
   input_channels_image: 3
   max_pool_sizes_sparse_to_dense_pool:
@@ -72,7 +71,6 @@ net:
   weight_initializer: xavier_normal
 
 config:
-  # depth_model_restore_path: /media/master/wext/msc_studies/second_semester/research_project/related_work/calibrated-backprojection-network/trained_kbnet/custom/kbnet_model/depth_model-14280.pth
   depth_model_restore_path: ${paths.data_dir}/ckpts/benchmarking/kbnet-kitti.pth
   save_outputs: true
   output_path: ${paths.output_dir}/kbnet_results
@@ -86,4 +84,4 @@ config:
   outlier_removal_kernel_size: 7
   outlier_removal_threshold: 1.5
 
-ckpt_path: ${.config.depth_model_restore_path}
+ckpt_path: ${config.depth_model_restore_path}

@@ -15,4 +15,7 @@ task_name: "eval"
 tags: ["dev"]
 
 # passing checkpoint path is necessary for evaluation
-ckpt_path: ${paths.data_dir}/ckpts/benchmarking/kbnet-kitti.pth
+ckpt_path: ${model.ckpt_path}
+
+# trainer:
+#   fast_dev_run: 2

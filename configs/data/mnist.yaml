@@ -1,6 +1,7 @@
 _target_: rsl_depth_completion.data.mnist_datamodule.MNISTDataModule
+# _target_: rsl_depth_completion.data.mnist_mimic_datamodule.MNISTDataModule
 data_dir: ${paths.data_dir}
 batch_size: 128
 train_val_test_split: [55_000, 5_000, 10_000]
-num_workers: 0
+num_workers: 20
 pin_memory: False

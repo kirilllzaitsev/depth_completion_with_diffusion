@@ -7,7 +7,7 @@ defaults:
   - data: mnist.yaml
   - model: mnist.yaml
   - callbacks: default.yaml
-  - logger: null # set logger here or use command line (e.g. `python train.py logger=tensorboard`)
+  - logger: tensorboard.yaml # set logger here or use command line (e.g. `python train.py logger=tensorboard`)
   - trainer: default.yaml
   - paths: default.yaml
   - extras: default.yaml
@@ -25,7 +25,7 @@ defaults:
   - optional local: default.yaml
 
   # debugging config (enable through command line, e.g. `python train.py debug=default)
-  - debug: null
+  - debug: overfit.yaml
 
 # task name, determines output directory path
 task_name: "train"
@@ -33,7 +33,7 @@ task_name: "train"
 # tags to help you identify your experiments
 # you can overwrite this in experiment configs
 # overwrite from command line with `python train.py tags="[first_tag, second_tag]"`
-tags: ["dev"]
+tags: ["overfit"]
 
 # set False to skip model training
 train: True
@@ -49,4 +49,4 @@ compile: False
 ckpt_path: null
 
 # seed for random number generators in pytorch, numpy and python.random
-seed: null
+seed: 11

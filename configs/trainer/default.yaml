@@ -4,7 +4,7 @@ _target_: rsl_depth_completion.trainer.Trainer
 default_root_dir: ${paths.output_dir}
 
 min_epochs: 1 # prevents early stopping
-max_epochs: 2
+max_epochs: 20
 
 accelerator: cuda
 devices: 1
@@ -20,3 +20,4 @@ check_val_every_n_epoch: 1
 deterministic: False
 
 # fast_dev_run: 2
+# fast_dev_run: False
