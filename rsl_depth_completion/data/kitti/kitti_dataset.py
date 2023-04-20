@@ -6,7 +6,6 @@ import random
 import cv2
 import numpy as np
 import torch
-
 from rsl_depth_completion.data.components import camera_calibration as calib
 from rsl_depth_completion.data.components import custom_transforms as transforms
 from rsl_depth_completion.data.components import pose_estimator as pose
@@ -90,7 +89,24 @@ class KittiDCDataset(torch.utils.data.Dataset):
 
         """
         sample = self.load_sample(index)
-        img, sparse_dm, dense_dm, adj_imgs = self.transform(sample)
+        sample = self.transform(sample)
+        img = sample["img"]
+        sparse_dm = sample["sparse_dm"]
+        dense_dm = sample["dense_dm"]
+        adj_imgs = sample["adj_imgs"] or []
+
+        candidates = {
+            "img": img if self.config.use_rgb else None,
+            "d": sparse_dm,
+            "gt": dense_dm,
+            "g": dl.convert_img_to_grayscale(img) if self.config.use_g else None,
+        }
+        items = {
+            key: transforms.to_float_tensor(val)
+            for key, val in candidates.items()
+            if val is not None
+        }
+
         t_vecs = []
         r_mats = []
         if self.split == "train" and self.config.use_pose:
@@ -105,25 +121,14 @@ class KittiDCDataset(torch.utils.data.Dataset):
                 t_vecs.append(t_vec)
                 r_mats.append(r_mat)
 
-        for i in range(len(adj_imgs)):
-            adj_imgs[i] = transforms.to_float_tensor(adj_imgs[i])
-            t_vecs[i] = transforms.to_float_tensor(t_vecs[i])
-            r_mats[i] = transforms.to_float_tensor(r_mats[i])
+            for i in range(len(adj_imgs)):
+                adj_imgs[i] = transforms.to_float_tensor(adj_imgs[i])
+                t_vecs[i] = transforms.to_float_tensor(t_vecs[i])
+                r_mats[i] = transforms.to_float_tensor(r_mats[i])
 
-        candidates = {
-            "img": img if self.config.use_rgb else None,
-            "d": sparse_dm,
-            "gt": dense_dm,
-            "g": dl.convert_img_to_grayscale(img) if self.config.use_g else None,
-        }
-        items = {
-            key: transforms.to_float_tensor(val)
-            for key, val in candidates.items()
-            if val is not None
-        }
-        candidates["adj_imgs"] = torch.stack(adj_imgs, dim=0).float()
-        candidates["r_mats"] = torch.stack(r_mats, dim=0).float()
-        candidates["t_vecs"] = torch.stack(t_vecs, dim=0).float()
+            items["adj_imgs"] = torch.stack(adj_imgs, dim=0).float()
+            items["r_mats"] = torch.stack(r_mats, dim=0).float()
+            items["t_vecs"] = torch.stack(t_vecs, dim=0).float()
 
         return items
 
@@ -140,3 +145,100 @@ class KittiDCDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.paths["gt"])
+
+
+class CustomKittiDCDataset(KittiDCDataset):
+    """
+    Loads the KITTI dataset for depth completion.
+    One item:
+        frame: (3, img_height, img_width)
+        adjacent_frames: (frame-to-the-left, frame-to-the-right) with the same shape as frame
+        depth: sparse_dm depth map of shape (1, img_height, img_width)
+
+    """
+
+    def __init__(
+        self,
+        image_paths,
+        sparse_depth_paths,
+        intrinsics_paths,
+        ds_config,
+        ground_truth_paths=None,
+        transform=None,
+        *args,
+        **kwargs,
+    ):
+        self.image_paths = image_paths
+        self.sparse_depth_paths = sparse_depth_paths
+        self.intrinsics_paths = intrinsics_paths
+        self.ground_truth_paths = ground_truth_paths
+        self.transform = transform
+        self.paths = self.get_input_paths()
+
+        self.config = ds_config
+        self.split = ds_config.split
+        self.subsplit = (
+            ds_config.subsplit if ds_config.subsplit is not None else "train"
+        )
+        self.transform = self.get_data_transform(ds_config)
+        self.K = self.load_intrinsic_calibration_matrix()
+        self.threshold_translation = 0.1
+
+        # self.validate_paths()
+
+    def load_intrinsic_calibration_matrix(
+        self,
+    ):
+        """As intrinsics is used to estimate [R|t], could get it at __getitem__ based on index, if
+        there are multiple items in the intrinsics_paths."""
+        return np.load(self.intrinsics_paths[0]).astype(np.float32)
+
+    def validate_paths(self):
+        assert len(self.image_paths) == len(self.sparse_depth_paths)
+        if self.ground_truth_paths is not None:
+            assert len(self.image_paths) == len(self.ground_truth_paths)
+
+    def get_input_paths(
+        self,
+    ):
+        return {
+            "img": self.image_paths,
+            "d": self.sparse_depth_paths,
+            "gt": self.ground_truth_paths,
+        }
+
+    def get_data_transform(self, ds_config):
+        return dl.get_data_transform(ds_config.split, ds_config.subsplit, ds_config)
+
+
+if __name__ == "__main__":
+    import argparse
+
+    import yaml
+    from kbnet import data_utils
+
+    ds_config = argparse.Namespace(
+        **yaml.safe_load(
+            open(
+                "../../../configs/data/kitti_custom.yaml"
+            )
+        )["ds_config"]
+    )
+    ds_config.use_pose = "photo" in ds_config.train_mode
+    ds_config.result = ds_config.result_dir
+    ds_config.use_rgb = ("rgb" in ds_config.input) or ds_config.use_pose
+    ds_config.use_d = "d" in ds_config.input
+    ds_config.use_g = "g" in ds_config.input
+    val_image_paths = data_utils.read_paths(ds_config.val_image_path)
+    val_sparse_depth_paths = data_utils.read_paths(ds_config.val_sparse_depth_path)
+    val_intrinsics_paths = data_utils.read_paths(ds_config.val_intrinsics_path)
+    val_ground_truth_paths = data_utils.read_paths(ds_config.val_ground_truth_path)
+    ds = CustomKittiDCDataset(
+        val_image_paths,
+        val_sparse_depth_paths,
+        val_intrinsics_paths,
+        ds_config,
+        val_ground_truth_paths,
+    )
+    x = ds[0]
+    print(x)
