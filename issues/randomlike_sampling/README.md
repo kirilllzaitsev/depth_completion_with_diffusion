@@ -3,6 +3,7 @@
 ## Reproduction
 
 - `pip install imagen-pytorch transformers datasets`
+- Run all cells in `randomlike_prediction.ipynb`
 
 ## Description
 
