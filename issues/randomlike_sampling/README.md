@@ -10,7 +10,11 @@ The Imagen model is trained from scratch on a single sample. Losses for both Une
 
 ## Setup
 
-Imagen with 200 training and 200 inference steps
+Imagen with 200 training and 200 inference steps, trained for 100 epochs on a single sample.
+
+## Expected Results
+
+The model remembers the training sample and generates it perfectly.
 
 ## Results
 
