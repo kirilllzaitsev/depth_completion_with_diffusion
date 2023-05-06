@@ -23,11 +23,13 @@ from minimagen.helpers import (
     unnormalize_zero_to_one,
 )
 from minimagen.t5 import get_encoded_dim, t5_encode_text
+from rsl_depth_completion.conditional_diffusion.train_utils import (
+    concatenate_tensors,
+    pad_tensor,
+)
 from rsl_depth_completion.conditional_diffusion.Unet import Unet
 from torch import nn
-from tqdm import tqdm
-
-from rsl_depth_completion.conditional_diffusion.train_utils import pad_tensor, concatenate_tensors
+from tqdm.auto import tqdm
 
 
 class Imagen(nn.Module):
@@ -43,7 +45,7 @@ class Imagen(nn.Module):
         image_sizes: Union[int, List[int], Tuple[int, ...]],
         text_embed_dim: int = None,
         channels: int = 3,
-        timesteps: Union[int, List[int], Tuple[int, ...]] = 1000,
+        train_timesteps: Union[int, List[int], Tuple[int, ...]] = 1000,
         cond_drop_prob: float = 0.1,
         loss_type: Literal["l1", "l2", "huber"] = "l2",
         lowres_sample_noise_level: float = 0.2,
@@ -83,10 +85,10 @@ class Imagen(nn.Module):
         num_unets = len(unets)
 
         # Create noise schedulers for each UNet
-        self.noise_schedulers = self._make_noise_schedulers(num_unets, timesteps)
+        self.noise_schedulers = self._make_noise_schedulers(num_unets, train_timesteps)
 
         # Lowres augmentation noise schedule
-        self.lowres_noise_schedule = GaussianDiffusion(timesteps=timesteps)
+        self.lowres_noise_schedule = GaussianDiffusion(timesteps=train_timesteps)
 
         # Text encoder params
         self.text_encoder_name = text_encoder_name
@@ -414,6 +416,8 @@ class Imagen(nn.Module):
         lowres_cond_img: torch.tensor = None,
         lowres_noise_times: torch.tensor = None,
         cond_scale: float = 1.0,
+        timesteps=None,
+        return_last=True,
     ):
         """
         Given a Unet, iteratively generates a sample via [reverse-diffusion](https://www.assemblyai.com/blog/diffusion-models-for-machine-learning-introduction/#diffusion-modelsintroduction).
@@ -428,16 +432,20 @@ class Imagen(nn.Module):
 
         # Get reverse-diffusion timesteps (i.e. (T, T-1, T-2, ..., 2, 1, 0) )
         batch = shape[0]
-        timesteps = noise_scheduler._get_sampling_timesteps(batch, device=device)
+        if timesteps is None:
+            timesteps = noise_scheduler._get_sampling_timesteps(batch, device=device)
+        elif isinstance(timesteps, int):
+            timesteps = (
+                torch.arange(timesteps, -1, -1, device=device).repeat(batch, 1).T
+            )
 
         # Generate starting "noised images"
         img = torch.randn(shape, device=device)
-
+        imgs = [img]
         # For each timestep, take one step back in time (i.e. one step forward in the reverse-diffusion process),
         # slightly denoising the images at each step. Supply conditioning information to direct the process.
-        for times in tqdm(
-            timesteps, desc="sampling loop time step", total=len(timesteps)
-        ):
+
+        for times in tqdm(timesteps, desc="sampling time step", total=len(timesteps)):
             img = self._p_sample(
                 unet,
                 img,
@@ -449,11 +457,15 @@ class Imagen(nn.Module):
                 lowres_noise_times=lowres_noise_times,
                 noise_scheduler=noise_scheduler,
             )
+            imgs.append(img)
 
         # Clamp images to the allowed range and un \-normalize to [0., 1.] if needed.
-        img.clamp_(-1.0, 1.0)
-        unnormalize_img = self.unnormalize_img(img)
-        return unnormalize_img
+        imgs = torch.stack(imgs)
+        imgs.clamp_(-1.0, 1.0)
+        unnormalize_img = self.unnormalize_img(imgs)
+        if return_last:
+            return unnormalize_img[-1]
+        return unnormalize_img.squeeze(1)
 
     @torch.no_grad()
     @eval_decorator
@@ -466,6 +478,9 @@ class Imagen(nn.Module):
         lowres_sample_noise_level: float = None,
         return_pil_images: bool = False,
         device: torch.device = None,
+        timesteps: int = None,
+        return_last: bool = True,
+        only_base=False,
     ) -> Union[torch.tensor, PIL.Image.Image]:
         """
         Generate images with Imagen.
@@ -505,15 +520,16 @@ class Imagen(nn.Module):
             lowres_sample_noise_level, self.lowres_sample_noise_level
         )
 
+        outputs_base = []
+        outputs_super = []
+
         # For each unet, sample with the appropriate conditioning
-        for unet_number, unet, channel, image_size, noise_scheduler in tqdm(
-            zip(
-                range(1, len(self.unets) + 1),
-                self.unets,
-                self.sample_channels,
-                self.image_sizes,
-                self.noise_schedulers,
-            )
+        for unet_number, unet, channel, image_size, noise_scheduler in zip(
+            range(1, len(self.unets) + 1),
+            self.unets,
+            self.sample_channels,
+            self.image_sizes,
+            self.noise_schedulers,
         ):
             # If GPU is available, place the Unet currently being sampled from on the GPU
             context = self._one_unet_in_gpu(unet=unet) if is_cuda else null_context()
@@ -522,6 +538,7 @@ class Imagen(nn.Module):
                 lowres_cond_img = lowres_noise_times = None
 
                 # If on a super-resolution model, noise the previously generated images for conditioning
+                _return_last = True
                 if unet.lowres_cond:
                     lowres_noise_times = self.lowres_noise_schedule._get_times(
                         batch_size, lowres_sample_noise_level, device=device
@@ -534,6 +551,7 @@ class Imagen(nn.Module):
                         t=lowres_noise_times,
                         noise=torch.randn_like(lowres_cond_img),
                     )
+                    _return_last = return_last
 
                 shape = (batch_size, self.channels, image_size, image_size)
 
@@ -547,18 +565,28 @@ class Imagen(nn.Module):
                     lowres_cond_img=lowres_cond_img,
                     lowres_noise_times=lowres_noise_times,
                     noise_scheduler=noise_scheduler,
+                    timesteps=timesteps,
+                    return_last=_return_last,
                 )
 
+                if unet.lowres_cond:
+                    outputs_super.append(img)
+                else:
+                    outputs_base.append(img)
+
+                if only_base:
+                    break
+
                 # Output the image if at the end of the super-resolution chain
-                outputs = img if unet_number == len(self.unets) else None
+                # outputs = img if unet_number == len(self.unets) else None
 
         # Return torch tensors or PIL Images
         if not return_pil_images:
-            return outputs
+            return {"base": outputs_base, "super": outputs_super}
 
-        pil_images = list(map(T.ToPILImage(), img.unbind(dim=0)))
+        pil_images = list(map(T.ToPILImage(), img.flatten(0,1)))
 
-        return pil_images
+        return {"base": outputs_base, "super": pil_images}
 
     def _p_losses(
         self,
@@ -626,7 +654,7 @@ class Imagen(nn.Module):
         noise = pad_tensor(noise, pred)
 
         # Return loss between prediction and ground truth
-        return self.loss_fn(pred, noise)
+        return {"loss": self.loss_fn(pred, noise), "pred": pred, "noise": noise}
 
     def forward(
         self,
@@ -726,7 +754,7 @@ class Imagen(nn.Module):
         images = resize_image_to(images, target_image_size)
 
         # Calculate and return the loss
-        return self._p_losses(
+        forward_out = self._p_losses(
             unet,
             images,
             times,
@@ -736,6 +764,7 @@ class Imagen(nn.Module):
             lowres_cond_img=lowres_cond_img,
             lowres_aug_times=lowres_aug_times,
         )
+        return forward_out
 
 
 if __name__ == "__main__":
@@ -746,7 +775,8 @@ if __name__ == "__main__":
             "/media/master/wext/msc_studies/second_semester/research_project/project/rsl_depth_completion/rsl_depth_completion/conditional_diffusion/full_params.json"
         )
     )
-    device = torch.device("cuda:0")
+    # device = torch.device("cuda:0")
+    device = torch.device("cpu")
     unets = [
         Unet(**params["unet_base"]).to(device),
         Unet(**params["unet_super_resolution"]).to(device),
@@ -779,11 +809,22 @@ if __name__ == "__main__":
     # images = torch.randn(2, 3, 128, 128).to(device)
     images = torch.randn(2, 1, 352, 1216).to(device)
     # encoding = torch.randn(2, 14, 512).to(device)
-    for unet_idx in range(len(unets)):
-        loss = imagen(
-            images,
-            text_embeds=encoding,
-            text_masks=mask,
-            unet_number=unet_idx + 1,
-        )
+    # for unet_idx in range(len(unets)):
+    #     loss = imagen(
+    #         images,
+    #         text_embeds=encoding,
+    #         text_masks=mask,
+    #         unet_number=unet_idx + 1,
+    #     )
+    sample_args = {"cond_scale": 1.0, "timesteps": 10}
+    # texts = x["cond_image"]
+    samples = imagen.sample(
+        texts=images,
+        text_embeds=encoding,
+        text_masks=mask,
+        return_pil_images=True,
+        return_last=False,
+        **sample_args,
+    )
+    print(samples[0].size)
     print("done")
