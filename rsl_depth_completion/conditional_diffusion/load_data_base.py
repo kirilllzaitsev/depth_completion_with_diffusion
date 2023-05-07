@@ -32,6 +32,8 @@ class BaseDMDataset(torch.utils.data.Dataset):
                 extension["cond_image"] = (rgb_image / 255).detach()
             else:
                 extension["cond_image"] = (sparse_dm / self.max_depth).detach()
+            extension["cond_image"] *= 2
+            extension["cond_image"] -= 1
 
         if self.use_text_embed:
             if self.use_rgb_as_text_embed:
@@ -51,7 +53,7 @@ class BaseDMDataset(torch.utils.data.Dataset):
                 extension["text_embed"] = sdm_embed.detach()
         if self.include_sdm_and_rgb_in_sample:
             extension["sdm"] = (sparse_dm).detach()
-            extension["rgb"] = (rgb_image/255).detach()
+            extension["rgb"] = (rgb_image / 255).detach()
         return {**sample, **extension}
 
     def extract_img_features(self, cond_image):
