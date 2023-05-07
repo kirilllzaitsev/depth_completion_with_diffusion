@@ -67,31 +67,48 @@ def overlay_sparse_depth_and_rgb(rgb, sdm):
     return cv2.addWeighted(rgb, 0.5, sdm, 0.5, 0)
 
 
-def plot_sample(x):
-    fix, ax = plt.subplots(2, 2, figsize=(20, 10))
-    ax[0, 0].imshow(
-        interpolate_sparse_depth(
-            x["sparse_dm"].squeeze().numpy(),
-            #   custom_kernel=depth_map_utils.DIAMOND_KERNEL_7,
-            # extrapolate=True,
-            do_multiscale=True,
-            max_depth=80,
+def plot_sample(x, items):
+    fix, ax = plt.subplots(len(items) // 2, 2, figsize=(15, 10))
+    for idx, item in enumerate(items):
+        img = x[item].numpy().transpose(1, 2, 0)
+
+        ax_idx = idx // 2, idx % 2
+        ax[ax_idx].imshow(img, cmap="gray")
+        ax[ax_idx].set_title(
+            item,
         )
-    )
-    ax[0, 1].imshow(
-        interpolate_sparse_depth(
-            x["sparse_dm"].squeeze().numpy(),
-            #   custom_kernel=depth_map_utils.DIAMOND_KERNEL_7,
-            # extrapolate=True,
-            # do_multiscale=True,
-            max_depth=80,
-        )
-    )
-    ax[1, 0].imshow(x["sparse_dm"].squeeze().numpy())
-    ax[1, 1].imshow(x["rgb_image"].squeeze().numpy().transpose(1, 2, 0))
     plt.show()
 
 
 def plot_source_and_reconstruction(src, rec):
     concatenated_img_and_denoised = torch.concatenate([src, rec], dim=2)
     plt.imshow(concatenated_img_and_denoised.permute(1, 2, 0).cpu().detach().numpy())
+
+
+def read_paths(filepath, path_to_data_dir=None):
+    """
+    Reads a newline delimited file containing paths
+
+    Arg(s):
+        filepath : str
+            path to file to be read
+    Return:
+        list[str] : list of paths
+    """
+
+    path_list = []
+    with open(filepath) as f:
+        while True:
+            path = f.readline().rstrip("\n")
+            # If there was nothing to read
+            if path == "":
+                break
+            if path_to_data_dir is not None:
+                path = path_to_data_dir + "/" + path
+            path_list.append(path)
+
+    return path_list
+
+
+def log_params_to_exp(experiment, params: dict, prefix: str):
+    experiment.log_parameters({f"{prefix}/{k}": v for k, v in params.items()})

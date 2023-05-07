@@ -1,178 +1,216 @@
 import matplotlib.pyplot as plt
-import numpy as np
+import tensorflow as tf
 import torch
-from rsl_depth_completion.conditional_diffusion.imagen import Imagen
-from tqdm.auto import tqdm
+from imagen_pytorch import Imagen
+from rsl_depth_completion.conditional_diffusion.config import cfg
+from torchvision.utils import save_image
+from tqdm import tqdm
+
+progress_bar = tqdm(total=cfg.num_epochs, disable=False)
 
 
-def MinimagenTrain(
-    timestamp,
-    args,
-    unets,
-    imagen: Imagen,
-    train_dataloader,
-    valid_dataloader,
-    training_dir,
-    optimizer,
-    **kwargs,
+class LRScheduler:
+    """
+    Learning rate scheduler. If the validation loss does not decrease for the
+    given number of `patience` epochs, then the learning rate will decrease by
+    by given `factor`.
+    """
+
+    def __init__(self, optimizer, patience=5, min_lr=1e-6, factor=0.5):
+        """
+        new_lr = old_lr * factor
+        :param optimizer: the optimizer we are using
+        :param patience: how many epochs to wait before updating the lr
+        :param min_lr: least lr value to reduce to while updating
+        :param factor: factor by which the lr should be updated
+        """
+        self.optimizer = optimizer
+        self.patience = patience
+        self.min_lr = min_lr
+        self.factor = factor
+        self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            self.optimizer,
+            mode="min",
+            patience=self.patience,
+            factor=self.factor,
+            min_lr=self.min_lr,
+            verbose=True,
+        )
+
+    def __call__(self, val_loss):
+        self.lr_scheduler.step(val_loss)
+
+
+class EarlyStopping:
+    """
+    Early stopping to stop the training when the loss does not improve after
+    certain epochs.
+    """
+
+    def __init__(self, patience=5, min_delta=0.0):
+        """
+        :param patience: how many epochs to wait before stopping when loss is
+               not improving
+        :param min_delta: minimum difference between new loss and old loss for
+               new loss to be considered as an improvement
+        """
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.best_loss = None
+        self.early_stop = False
+
+    def __call__(self, val_loss):
+        if self.best_loss == None:
+            self.best_loss = val_loss
+        elif self.best_loss - val_loss > self.min_delta:
+            self.best_loss = val_loss
+            # reset counter if validation loss improves
+            self.counter = 0
+        elif self.best_loss - val_loss < self.min_delta:
+            self.counter += 1
+            print(f"INFO: Early stopping counter {self.counter} of {self.patience}")
+            if self.counter >= self.patience:
+                print("INFO: Early stopping")
+                self.early_stop = True
+
+
+def train(
+    imagen: Imagen, optimizer, train_dataloader, train_writer, out_dir, do_debug=False
 ):
-    """
-    Training loop for MinImagen instance
+    lr_scheduler = LRScheduler(optimizer, patience=2, min_lr=1e-7, factor=0.5)
+    early_stopping = EarlyStopping(patience=5, min_delta=1e-3)
 
-    :param timestamp: Timestamp for training.
-    :param args: Arguments Namespace/dict from argparsing :func:`.minimagen.training.get_minimagen_parser` parser.
-    :param unets: List of :class:`~.minimagen.Unet.Unet`s used in the Imagen instance.
-    :param imagen: :class:`~.minimagen.Imagen.Imagen` instance to train.
-    :param train_dataloader: Dataloader for training.
-    :param valid_dataloader: Dataloader for validation.
-    :param training_dir: Training directory context manager returned from :func:`~.minimagen.training.create_directory`.
-    :param optimizer: Optimizer to use for training.
-    :param timeout: Amount of time to spend trying to process batch before passing on to the next batch. Does not work
-        on Windows.
-    :return:
-    """
-    train_unet_losses = {"base": [], "super": []}
-    val_unet_losses = {"base": [], "super": []}
-    start_epoch = kwargs.get("start_epoch", 0)
+    if not cfg.do_lr_schedule:
+        lr_scheduler.patience = torch.inf
+    if not cfg.do_early_stopping:
+        early_stopping.patience = torch.inf
 
-    for epoch in range(start_epoch, start_epoch + args.EPOCHS):
-        print(f"### Epoch {epoch + 1} of {args.EPOCHS+start_epoch} ###")
+    max_outputs = train_dataloader.batch_size
 
-        imagen.train(True)
+    eval_batch = next(iter(train_dataloader))
+    with train_writer.as_default():
+        log_batch_input(eval_batch, epoch=1, max_outputs=max_outputs, prefix="eval")
 
-        running_train_loss = [0.0 for i in range(len(unets))]
-        for batch_num, batch in tqdm(
-            enumerate(train_dataloader),
-            total=len(train_dataloader),
-            desc="train",
-            leave=True,
-        ):
-            optimizer.zero_grad()
-            if batch is None:
-                print(f"Batch {batch_num} is None, skipping...")
-                continue
-            images = batch["image"]
-            encoding = batch["encoding"]
-            cond_image = batch["cond_image"]
-            mask = batch["mask"]
-
-            losses = [0.0 for i in range(len(unets))]
-            for unet_idx in range(len(unets)):
-                forward_out = imagen(
-                    images,
-                    text_embeds=encoding,
-                    text_masks=mask,
-                    unet_number=unet_idx + 1,
+    for epoch in range(cfg.num_epochs):
+        progress_bar.set_description(f"Epoch {epoch}")
+        optimizer.zero_grad()
+        running_loss = {"loss": 0}
+        imagen.train()
+        with torch.autocast(cfg.device.type):
+            if do_debug:
+                data_gen = enumerate(train_dataloader)
+            else:
+                data_gen = tqdm(
+                    enumerate(train_dataloader), total=len(train_dataloader)
                 )
-                loss = forward_out["loss"]
-                pred, noise = forward_out["pred"], forward_out["noise"]
-                losses[unet_idx] = loss.detach()
-                running_train_loss[unet_idx] += loss.detach()
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(imagen.parameters(), 50)
-
-            optimizer.step()
-
-            if epoch % 10 == 0:
-                # if batch_num % 100 == 0:
-                # if batch_num % 100 == 0 and epoch % 2 == 0:
-                avg_running_loss = [
-                    round(i.item() / (batch_num + 1), 5) for i in running_train_loss
-                ]
-                print(f"Running Train Losses at batch {batch_num}: {avg_running_loss}")
-                sample_args = {
-                    "cond_scale": 3.0,
-                    "timesteps": 200,
-                    "return_last": False,
-                }
-                sample_out = imagen.sample(
-                    texts=images[0],
-                    text_masks=mask[0].unsqueeze(0),
-                    text_embeds=encoding[0].unsqueeze(0),
-                    return_pil_images=False,
-                    **sample_args,
-                )
-                # import ipdb; ipdb.set_trace()
-                from torchvision.utils import save_image
-
-                save_image(
-                    sample_out['base'][0].cpu(),
-                    str(
-                        f'{kwargs["save_train_samples_dir"]}/sample_epoch_{epoch}_batch_{batch_num}.png'
-                    ),
-                    n_row=10,
-                )
-                if kwargs.get("save_input") is not None and epoch < start_epoch+30:
-                    save_image(
-                        cond_image / 255,
-                        str(f'{kwargs["save_train_samples_dir"]}/cond-input-{epoch}.png'),
+            for batch_idx, batch in data_gen:
+                images = batch["image"].to(cfg.device)
+                if "text_embed" in batch:
+                    text_embeds = batch["text_embed"].to(cfg.device)
+                else:
+                    text_embeds = None
+                if "cond_image" in batch:
+                    cond_images = batch["cond_image"].to(cfg.device)
+                else:
+                    cond_images = None
+                for i in range(1, 2):
+                    loss = imagen(
+                        images=images,
+                        text_embeds=text_embeds,
+                        cond_images=cond_images,
+                        unet_number=i,
                     )
-                    save_image(
-                        images, str(f'{kwargs["save_train_samples_dir"]}/input-{epoch}.png')
+                    loss.backward()
+                    running_loss["loss"] += loss.item()
+                optimizer.step()
+
+                with train_writer.as_default():
+                    tf.summary.scalar(
+                        "batch/loss",
+                        loss.item(),
+                        step=epoch * len(train_dataloader) + batch_idx,
+                    )
+                    if do_debug and cfg.do_save_inputs_every_batch:
+                        log_batch_input(batch, epoch, len(images), prefix="train")
+                if do_debug and batch_idx == 0:
+                    break
+
+        with train_writer.as_default():
+            tf.summary.scalar("epoch/loss", running_loss["loss"], step=epoch)
+
+        progress_bar.update(1)
+
+        if (epoch - 1) % cfg.sampling_freq == 0 or epoch == cfg.num_epochs - 1:
+            # if True:
+            print(f"Epoch: {epoch}\t{running_loss}")
+            lr_scheduler(running_loss["loss"])
+            if early_stopping.early_stop:
+                break
+
+            progress_bar.set_postfix(**running_loss)
+
+            if cfg.do_sample:
+                imagen.eval()
+                with torch.no_grad():
+                    samples = imagen.sample(
+                        text_embeds=eval_batch["text_embed"].to(cfg.device)
+                        if "text_embed" in eval_batch
+                        else None,
+                        cond_images=eval_batch["cond_image"].to(cfg.device)
+                        if "cond_image" in eval_batch
+                        else None,
+                        cond_scale=cfg.cond_scale,
+                        batch_size=train_dataloader.batch_size,
+                        stop_at_unet_number=None,
+                        return_all_unet_outputs=True,
                     )
 
-        avg_loss = [
-            round(i.item() / len(train_dataloader), 5) for i in running_train_loss
-        ]
-        if len(imagen.unets) > 1:
-            print(f"(Base,SuperR) Unets Train Loss: {avg_loss[0], avg_loss[1]}")
-            train_unet_losses["super"].append(avg_loss[1])
-        else:
-            print(f"(Base) Unet Train Loss: {avg_loss[0]}")
-        train_unet_losses["base"].append(avg_loss[0])
+                first_sample_in_batch = (
+                    samples[0][0].permute(1, 2, 0).cpu().detach().numpy()
+                )
+                plt.imshow(first_sample_in_batch, cmap="gray")
+                plt.savefig(f"{out_dir}/first_sample_in_batch_{epoch:04d}.png")
+                out_path = f"{out_dir}/sample-{epoch}.png"
+                save_image(samples[0], str(out_path), nrow=10)
+                with train_writer.as_default():
+                    tf.summary.image(
+                        "samples",
+                        samples[0].cpu().detach().numpy().transpose(0, 2, 3, 1),
+                        max_outputs=max_outputs,
+                        step=epoch,
+                    )
+            if do_debug and cfg.train_one_epoch:
+                break
 
-    return train_unet_losses, val_unet_losses
+    if not do_debug:
+        torch.save(imagen.state_dict(), f"{out_dir}/imagen_epoch_{cfg.num_epochs}.pt")
 
-    #     # Compute average loss across validation batches for each unet
-    #     running_valid_loss = [0.0 for i in range(len(unets))]
-    #     imagen.train(False)
 
-    #     for batch_num, vbatch in tqdm(
-    #         enumerate(valid_dataloader),
-    #         desc="valid",
-    #         total=len(valid_dataloader),
-    #     ):
-    #         if not vbatch:
-    #             continue
+def log_batch_input(eval_batch, epoch, max_outputs, prefix=None):
+    train_img_name = "train_img"
+    sdm_name = "sdm"
+    rgb_name = "rgb"
+    if prefix is not None:
+        train_img_name = f"{prefix}/{train_img_name}"
+        sdm_name = f"{prefix}/{sdm_name}"
+        rgb_name = f"{prefix}/{rgb_name}"
 
-    #         images = vbatch["image"]
-    #         encoding = vbatch["encoding"]
-    #         mask = vbatch["mask"]
-
-    #         for unet_idx in range(len(unets)):
-    #             running_valid_loss[unet_idx] += imagen(
-    #                 images,
-    #                 text_embeds=encoding,
-    #                 text_masks=mask,
-    #                 unet_number=unet_idx + 1,
-    #             ).detach()
-
-    #         if batch_num % 100 == 0:
-    #             avg_running_val_loss = [
-    #                 round(i.item() / (batch_num + 1), 5) for i in running_valid_loss
-    #             ]
-    #             print(
-    #                 f"Running Val Losses at batch {batch_num}: {avg_running_val_loss}"
-    #             )
-
-    #     # Write average validation loss
-    #     avg_val_loss = [
-    #         round(i.item() / len(valid_dataloader), 5) for i in running_valid_loss
-    #     ]
-
-    #     # If validation loss less than previous best, save the model weights
-    #     for i, l in enumerate(avg_val_loss):
-    #         if l < best_loss[i]:
-    #             best_loss[i] = l
-    #             with training_dir("state_dicts"):
-    #                 model_path = f"unet_{i}_state_{timestamp}.pth"
-    #                 torch.save(imagen.unets[i].state_dict(), model_path)
-
-    #     print(f"(Base,SuperR) Unets Val Loss: {avg_val_loss[0], avg_val_loss[1]}")
-    #     val_unet_losses["base"].append(avg_val_loss[0])
-    #     val_unet_losses["super"].append(avg_val_loss[1])
-
-    # for losses in [train_unet_losses, val_unet_losses]:
-    #     losses["base"] = np.array(losses["base"])
-    #     losses["super"] = np.array(losses["super"])
-    # return train_unet_losses, val_unet_losses
+    tf.summary.image(
+        train_img_name,
+        eval_batch["image"].numpy().transpose(0, 2, 3, 1),
+        max_outputs=max_outputs,
+        step=epoch,
+    )
+    tf.summary.image(
+        sdm_name,
+        eval_batch["sdm"].numpy().transpose(0, 2, 3, 1),
+        max_outputs=max_outputs,
+        step=epoch,
+    )
+    tf.summary.image(
+        rgb_name,
+        eval_batch["rgb"].numpy().transpose(0, 2, 3, 1),
+        max_outputs=max_outputs,
+        step=epoch,
+    )
