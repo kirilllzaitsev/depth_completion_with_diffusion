@@ -75,9 +75,7 @@ class EarlyStopping:
                 self.early_stop = True
 
 
-def train(
-    imagen: Imagen, optimizer, train_dataloader, train_writer, out_dir, do_debug=False
-):
+def train(imagen: Imagen, optimizer, train_dataloader, train_writer, out_dir):
     lr_scheduler = LRScheduler(
         optimizer,
         patience=cfg.lr_schedule_cfg.patience,
@@ -104,7 +102,7 @@ def train(
         optimizer.zero_grad()
         running_loss = {"loss": 0, "diff_to_orig_img": 0}
         imagen.train()
-        if do_debug:
+        if cfg.do_overfit:
             data_gen = enumerate(train_dataloader)
         else:
             data_gen = tqdm(enumerate(train_dataloader), total=len(train_dataloader))
@@ -139,9 +137,9 @@ def train(
                     loss.item(),
                     step=epoch * len(train_dataloader) + batch_idx,
                 )
-                if do_debug and cfg.do_save_inputs_every_batch:
+                if cfg.do_overfit and cfg.do_save_inputs_every_batch:
                     log_batch_input(batch, epoch, len(images), prefix="train")
-            if do_debug and batch_idx == 0:
+            if cfg.do_overfit and batch_idx == 0:
                 break
 
         with train_writer.as_default():
@@ -192,10 +190,10 @@ def train(
                             max_outputs=max_outputs,
                             step=epoch,
                         )
-            if do_debug and cfg.train_one_epoch:
+            if cfg.train_one_epoch:
                 break
 
-    if not do_debug:
+    if not cfg.do_overfit:
         torch.save(imagen.state_dict(), f"{out_dir}/imagen_epoch_{cfg.num_epochs}.pt")
 
 

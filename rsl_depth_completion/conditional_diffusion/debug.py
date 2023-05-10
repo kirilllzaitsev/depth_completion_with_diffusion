@@ -37,7 +37,7 @@ ds_params = product_dict(
 )
 
 logdir = Path("./logs") if not cfg.is_cluster else Path(cfg.tmpdir) / "logs"
-if cfg.do_debug:
+if cfg.do_overfit:
     logdir = logdir / "debug2"
 else:
     logdir = logdir / "train"
@@ -55,7 +55,7 @@ for ds_name in ["mnist"]:
         print(ds_kwargs)
 
         ds, train_dataloader, val_dataloader = load_data(
-            ds_name=ds_name, do_debug=cfg.do_debug, **ds_kwargs
+            ds_name=ds_name, do_overfit=cfg.do_overfit, **ds_kwargs
         )
 
         experiment = comet_ml.Experiment(
@@ -133,7 +133,6 @@ for ds_name in ["mnist"]:
             imagen,
             optimizer,
             train_dataloader,
-            do_debug=cfg.do_debug,
             out_dir=train_logdir,
             train_writer=train_writer,
         )
@@ -142,6 +141,6 @@ for ds_name in ["mnist"]:
         experiment.add_tags(cfg.other_tags)
         experiment.add_tag(ds_name)
         experiment.add_tag("overfit" if cfg.do_overfit else "full_data")
-        experiment.add_tag("debug" if cfg.do_debug else "train")
+        # experiment.add_tag("debug" if cfg.do_debug else "train")
 
         experiment.end()

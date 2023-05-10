@@ -40,7 +40,7 @@ mnist_ds_internal_transform = partial(
 )
 
 
-def load_data(ds_name="mnist", do_debug=False, **ds_kwargs):
+def load_data(ds_name="mnist", do_overfit=False, **ds_kwargs):
     if ds_name == "mnist":
         sub_ds = MNISTDMDataset(
             img_transform=mnist_ds_internal_transform,
@@ -63,7 +63,7 @@ def load_data(ds_name="mnist", do_debug=False, **ds_kwargs):
     )
     ds = DMDataset(sub_ds, transform=post_transform)
 
-    if do_debug:
+    if do_overfit:
         BATCH_SIZE = 1
         NUM_WORKERS = 0
     elif cfg.is_cluster:
@@ -73,7 +73,7 @@ def load_data(ds_name="mnist", do_debug=False, **ds_kwargs):
         BATCH_SIZE = 2
         NUM_WORKERS = 0
 
-    subset_range = range(0, BATCH_SIZE) if do_debug else range(0, 400)
+    subset_range = range(0, BATCH_SIZE) if do_overfit else range(0, 400)
 
     ds_subset = torch.utils.data.Subset(
         ds,
@@ -95,7 +95,7 @@ def load_data(ds_name="mnist", do_debug=False, **ds_kwargs):
         "drop_last": True,
     }
     train_dataloader = torch.utils.data.DataLoader(
-        train_dataset, **dl_opts, shuffle=False if do_debug else True
+        train_dataset, **dl_opts, shuffle=False if do_overfit else True
     )
     valid_dataloader = torch.utils.data.DataLoader(
         valid_dataset, **dl_opts, shuffle=False
