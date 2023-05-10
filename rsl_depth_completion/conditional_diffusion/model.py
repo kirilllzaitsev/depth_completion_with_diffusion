@@ -32,9 +32,8 @@ def init_model(timesteps, experiment, ds_kwargs):
         auto_normalize_img=False,
         cond_drop_prob=0.1,
         condition_on_text=ds_kwargs["use_text_embed"],
-        # pred_objectives="x_start",
+        pred_objectives="noise",
     )
-
 
     unet_base = Unet(**unet_base_params)
     unets = [unet_base]
@@ -47,7 +46,7 @@ def init_model(timesteps, experiment, ds_kwargs):
     )
     log_params_to_exp(experiment, unet_base_params, "unet_base_params")
     log_params_to_exp(experiment, imagen_params, "imagen_params")
-    
+
     return unets, imagen
 
 
