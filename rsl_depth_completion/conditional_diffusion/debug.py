@@ -7,7 +7,10 @@ import torch
 import torch.optim as optim
 from load_data import load_data
 from rsl_depth_completion.conditional_diffusion.config import cfg
-from rsl_depth_completion.conditional_diffusion.utils import log_params_to_exp
+from rsl_depth_completion.conditional_diffusion.utils import (
+    dict2mdtable,
+    log_params_to_exp,
+)
 from rsl_depth_completion.diffusion.utils import set_seed
 
 set_seed(cfg.seed)
@@ -39,11 +42,13 @@ if cfg.do_debug:
 else:
     logdir = logdir / "train"
 
-shutil.rmtree(logdir,ignore_errors=True)
+# shutil.rmtree(logdir, ignore_errors=True)
 
 
-for ds_name in ["mnist", "kiti"]:
-    for ds_kwargs in ds_params:
+# for ds_name in ["mnist", "kitti"]:
+for ds_name in ["mnist"]:
+    for ds_kwargs in [next(ds_params)]:
+        # for ds_kwargs in ds_params:
         ds_kwargs["use_rgb_as_text_embed"] = not ds_kwargs["use_rgb_as_cond_image"]
         ds_kwargs["include_sdm_and_rgb_in_sample"] = True
         ds_kwargs["do_crop"] = True
@@ -117,6 +122,10 @@ for ds_name in ["mnist", "kiti"]:
         train_logdir = logdir / exp_dir / cond
         train_logdir.mkdir(parents=True, exist_ok=True)
         train_writer = tf.summary.create_file_writer(str(train_logdir))
+        with train_writer.as_default():
+            tf.summary.text(
+                "hyperparams", dict2mdtable({**ds_kwargs, **cfg.params()}), 1
+            )
 
         from train import train
 
@@ -130,6 +139,7 @@ for ds_name in ["mnist", "kiti"]:
         )
 
         experiment.add_tags([k for k, v in ds_kwargs.items() if v])
+        experiment.add_tags(cfg.other_tags)
         experiment.add_tag(ds_name)
         experiment.add_tag("overfit" if cfg.do_overfit else "full_data")
         experiment.add_tag("debug" if cfg.do_debug else "train")

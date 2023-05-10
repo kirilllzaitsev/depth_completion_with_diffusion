@@ -81,6 +81,15 @@ def plot_sample(x, items):
 
 
 def plot_source_and_reconstruction(src, rec):
+    def cast_to_tensor(x):
+        if not isinstance(type(x), torch.Tensor):
+            if not isinstance(type(x), np.ndarray):
+                x = np.array(x)
+            x = torch.tensor(x)
+        return x
+
+    src = cast_to_tensor(src)
+    rec = cast_to_tensor(rec)
     concatenated_img_and_denoised = torch.concatenate([src, rec], dim=2)
     plt.imshow(concatenated_img_and_denoised.permute(1, 2, 0).cpu().detach().numpy())
 
@@ -112,3 +121,10 @@ def read_paths(filepath, path_to_data_dir=None):
 
 def log_params_to_exp(experiment, params: dict, prefix: str):
     experiment.log_parameters({f"{prefix}/{k}": v for k, v in params.items()})
+
+
+def dict2mdtable(d, key="Name", val="Value"):
+    rows = [f"| {key} | {val} |"]
+    rows += ["|--|--|"]
+    rows += [f"| {k} | {v} |" for k, v in d.items()]
+    return "  \n".join(rows)
