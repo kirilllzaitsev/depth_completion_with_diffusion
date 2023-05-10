@@ -78,8 +78,15 @@ class EarlyStopping:
 def train(
     imagen: Imagen, optimizer, train_dataloader, train_writer, out_dir, do_debug=False
 ):
-    lr_scheduler = LRScheduler(optimizer, patience=2, min_lr=1e-7, factor=0.5)
-    early_stopping = EarlyStopping(patience=5, min_delta=1e-3)
+    lr_scheduler = LRScheduler(
+        optimizer,
+        patience=cfg.lr_schedule_cfg.patience,
+        min_lr=cfg.lr_schedule_cfg.min_lr,
+        factor=cfg.lr_schedule_cfg.factor,
+    )
+    early_stopping = EarlyStopping(
+        patience=cfg.early_stop_cfg.patience, min_delta=cfg.early_stop_cfg.min_delta
+    )
 
     if not cfg.do_lr_schedule:
         lr_scheduler.patience = torch.inf
@@ -95,49 +102,53 @@ def train(
     for epoch in range(cfg.num_epochs):
         progress_bar.set_description(f"Epoch {epoch}")
         optimizer.zero_grad()
-        running_loss = {"loss": 0}
+        running_loss = {"loss": 0, "diff_to_orig_img": 0}
         imagen.train()
-        with torch.autocast(cfg.device.type):
-            if do_debug:
-                data_gen = enumerate(train_dataloader)
+        if do_debug:
+            data_gen = enumerate(train_dataloader)
+        else:
+            data_gen = tqdm(enumerate(train_dataloader), total=len(train_dataloader))
+        for batch_idx, batch in data_gen:
+            images = batch["image"].to(cfg.device)
+            if "text_embed" in batch:
+                text_embeds = batch["text_embed"].to(cfg.device)
             else:
-                data_gen = tqdm(
-                    enumerate(train_dataloader), total=len(train_dataloader)
-                )
-            for batch_idx, batch in data_gen:
-                images = batch["image"].to(cfg.device)
-                if "text_embed" in batch:
-                    text_embeds = batch["text_embed"].to(cfg.device)
-                else:
-                    text_embeds = None
-                if "cond_image" in batch:
-                    cond_images = batch["cond_image"].to(cfg.device)
-                else:
-                    cond_images = None
-                for i in range(1, 2):
-                    loss = imagen(
+                text_embeds = None
+            if "cond_image" in batch:
+                cond_images = batch["cond_image"].to(cfg.device)
+            else:
+                cond_images = None
+            with torch.autocast(cfg.device.type):
+                for i in range(1, len(imagen.unets)):
+                    losses = imagen(
                         images=images,
                         text_embeds=text_embeds,
                         cond_images=cond_images,
                         unet_number=i,
                     )
+                    loss = losses[imagen.pred_objectives[i - 1]]
+                    diff_to_orig_img = losses["diff_to_orig_img"]
                     loss.backward()
                     running_loss["loss"] += loss.item()
-                optimizer.step()
+                    running_loss["diff_to_orig_img"] += diff_to_orig_img.item()
+            optimizer.step()
 
-                with train_writer.as_default():
-                    tf.summary.scalar(
-                        "batch/loss",
-                        loss.item(),
-                        step=epoch * len(train_dataloader) + batch_idx,
-                    )
-                    if do_debug and cfg.do_save_inputs_every_batch:
-                        log_batch_input(batch, epoch, len(images), prefix="train")
-                if do_debug and batch_idx == 0:
-                    break
+            with train_writer.as_default():
+                tf.summary.scalar(
+                    "batch/loss",
+                    loss.item(),
+                    step=epoch * len(train_dataloader) + batch_idx,
+                )
+                if do_debug and cfg.do_save_inputs_every_batch:
+                    log_batch_input(batch, epoch, len(images), prefix="train")
+            if do_debug and batch_idx == 0:
+                break
 
         with train_writer.as_default():
             tf.summary.scalar("epoch/loss", running_loss["loss"], step=epoch)
+            tf.summary.scalar(
+                "epoch/diff_to_orig_img", running_loss["diff_to_orig_img"], step=epoch
+            )
 
         progress_bar.update(1)
 
@@ -166,20 +177,21 @@ def train(
                         return_all_unet_outputs=True,
                     )
 
-                first_sample_in_batch = (
-                    samples[0][0].permute(1, 2, 0).cpu().detach().numpy()
-                )
-                plt.imshow(first_sample_in_batch, cmap="gray")
-                plt.savefig(f"{out_dir}/first_sample_in_batch_{epoch:04d}.png")
-                out_path = f"{out_dir}/sample-{epoch}.png"
-                save_image(samples[0], str(out_path), nrow=10)
                 with train_writer.as_default():
-                    tf.summary.image(
-                        "samples",
-                        samples[0].cpu().detach().numpy().transpose(0, 2, 3, 1),
-                        max_outputs=max_outputs,
-                        step=epoch,
-                    )
+                    for unet_idx in range(len(imagen.unets)):
+                        out_path = f"{out_dir}/sample-{epoch}-unet-{unet_idx}.png"
+                        save_image(samples[unet_idx], str(out_path), nrow=10)
+                        name = f"samples/unet_{unet_idx}" if unet_idx > 0 else "samples"
+                        tf.summary.image(
+                            name,
+                            samples[unet_idx]
+                            .cpu()
+                            .detach()
+                            .numpy()
+                            .transpose(0, 2, 3, 1),
+                            max_outputs=max_outputs,
+                            step=epoch,
+                        )
             if do_debug and cfg.train_one_epoch:
                 break
 
