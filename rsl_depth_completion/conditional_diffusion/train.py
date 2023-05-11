@@ -1,3 +1,4 @@
+import cv2
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import torch
@@ -117,12 +118,18 @@ def train(imagen: Imagen, optimizer, train_dataloader, train_writer, out_dir):
             else:
                 cond_images = None
             with torch.autocast(cfg.device.type):
-                for i in range(1, len(imagen.unets)):
+                loss_mask = batch["sdm"].to(cfg.device)
+                loss_mask = torch.from_numpy(
+                    cv2.resize(loss_mask.cpu().squeeze().numpy(), (64, 64))
+                ).to(cfg.device)
+                loss_mask[loss_mask > 0] = 1
+                for i in range(1, len(imagen.unets) + 1):
                     losses = imagen(
                         images=images,
                         text_embeds=text_embeds,
                         cond_images=cond_images,
                         unet_number=i,
+                        loss_mask=loss_mask,
                     )
                     loss = losses[imagen.pred_objectives[i - 1]]
                     diff_to_orig_img = losses["diff_to_orig_img"]
