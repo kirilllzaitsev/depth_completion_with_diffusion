@@ -3,6 +3,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+import tensorflow as tf
 import torch
 import torch.nn.functional as F
 from accelerate import Accelerator
@@ -11,7 +12,9 @@ from huggingface_hub import HfFolder, Repository, whoami
 from PIL import Image
 from rsl_depth_completion.conditional_diffusion.config import cfg as cfg_cls
 from rsl_depth_completion.conditional_diffusion.load_data import load_data
+from rsl_depth_completion.conditional_diffusion.train import log_batch
 from rsl_depth_completion.diffusion.utils import set_seed
+from torchvision.utils import save_image
 from tqdm.auto import tqdm
 
 cfg = cfg_cls(path="configs/overfit.yaml")
@@ -67,7 +70,7 @@ class TrainingConfig:
     learning_rate = cfg.lr
     lr_warmup_steps = 500
     save_image_epochs = 2
-    save_model_epochs = 10
+    save_model_epochs = 1000
     mixed_precision = "fp16"  # `no` for float32, `fp16` for automatic mixed precision
     output_dir = "stable-diffusion"  # the model name locally and on the HF Hub
 
@@ -156,10 +159,18 @@ def evaluate(config, epoch, pipeline):
     test_dir = os.path.join(config.output_dir, "samples")
     os.makedirs(test_dir, exist_ok=True)
     image_grid.save(f"{test_dir}/{epoch:04d}.png")
+    return images
 
 
 def train_loop(
-    config, model, noise_scheduler, optimizer, train_dataloader, lr_scheduler
+    train_writer,
+    config: TrainingConfig,
+    model,
+    noise_scheduler,
+    optimizer,
+    train_dataloader,
+    lr_scheduler,
+    out_dir,
 ):
     # Initialize accelerator and tensorboard logging
     accelerator = Accelerator(
@@ -182,18 +193,37 @@ def train_loop(
 
     global_step = 0
 
+    progress_bar_epoch = tqdm(total=cfg.num_epochs, disable=False)
+
+    eval_batch = next(iter(train_dataloader))
+    batch_size = config.train_batch_size
+    with train_writer.as_default():
+        log_batch(eval_batch, epoch=1, batch_size=batch_size, prefix="eval")
+
     # Now you train the model
     for epoch in range(config.num_epochs):
+        progress_bar_epoch.set_description(f"Epoch {epoch}")
         progress_bar = tqdm(
             total=len(train_dataloader),
             disable=True or not accelerator.is_local_main_process,
         )
-        progress_bar.set_description(f"Epoch {epoch}")
+        running_loss = {"loss": 0, "diff_to_orig_img": 0}
+        if cfg.do_overfit:
+            data_gen = enumerate(train_dataloader)
+        else:
+            data_gen = tqdm(enumerate(train_dataloader), total=len(train_dataloader))
 
-        for step, batch in enumerate(train_dataloader):
-            if step == 1:
-                break
+        running_loss = {"loss": 0, "diff_to_orig_img": 0}
 
+        for batch_idx, batch in data_gen:
+            if "text_embed" in batch:
+                text_embeds = batch["text_embed"].to(cfg.device)
+            else:
+                text_embeds = None
+            if "cond_image" in batch:
+                cond_images = batch["cond_image"].to(cfg.device)
+            else:
+                cond_images = None
             clean_images = batch["image"]
             # Sample noise to add to the images
             noise = torch.randn(clean_images.shape).to(clean_images.device)
@@ -222,9 +252,23 @@ def train_loop(
                 # lr_scheduler.step()
                 optimizer.zero_grad()
 
+            loss = loss.detach().item()
+            running_loss["loss"] += loss
+
+            with train_writer.as_default():
+                tf.summary.scalar(
+                    "batch/loss",
+                    loss,
+                    step=global_step,
+                )
+                if cfg.do_overfit and cfg.do_save_inputs_every_batch:
+                    log_batch(batch, epoch, batch_size, prefix="train")
+            if cfg.do_overfit and batch_idx == 0:
+                break
+
             progress_bar.update(1)
             logs = {
-                "loss": loss.detach().item(),
+                "loss": loss,
                 "lr": optimizer.optimizer.param_groups[0]["lr"],
                 "step": global_step,
             }
@@ -240,11 +284,58 @@ def train_loop(
                 scheduler=noise_scheduler,
             )
 
-            if (
-                epoch + 1
-            ) % config.save_image_epochs == 0 or epoch == config.num_epochs - 1:
-                print(f"Epoch: {epoch}\t{logs}")
-                evaluate(config, epoch, pipeline)
+            with train_writer.as_default():
+                tf.summary.scalar("epoch/loss", running_loss["loss"], step=epoch)
+
+            progress_bar_epoch.update(1)
+
+            if (epoch - 1) % cfg.sampling_freq == 0 or epoch == cfg.num_epochs - 1:
+                progress_bar_epoch.set_postfix(**running_loss)
+
+                if cfg.do_sample:
+                    eval_text_embeds = (
+                        eval_batch["text_embed"].to(cfg.device)
+                        if "text_embed" in eval_batch
+                        else None
+                    )
+                    eval_cond_images = (
+                        eval_batch["cond_image"].to(cfg.device)
+                        if "cond_image" in eval_batch
+                        else None
+                    )
+
+                    # samples = trainer.sample(
+                    #     text_embeds=eval_text_embeds,
+                    #     cond_images=eval_cond_images,
+                    #     cond_scale=cfg.cond_scale,
+                    #     batch_size=batch_size,
+                    #     stop_at_unet_number=None,
+                    #     return_all_unet_outputs=True,
+                    # )
+                    samples = evaluate(config, epoch, pipeline)
+
+                    with train_writer.as_default():
+                        # relies on return_all_unet_outputs=True
+                        for unet_idx in range(len(samples)):
+                            out_path = f"{out_dir}/sample-{epoch}-unet-{unet_idx}.png"
+                            save_image(samples[unet_idx], str(out_path), nrow=10)
+                            name = (
+                                f"samples/unet_{unet_idx}"
+                                if unet_idx > 0
+                                else "samples"
+                            )
+                            tf.summary.image(
+                                name,
+                                samples[unet_idx]
+                                .cpu()
+                                .detach()
+                                .numpy()
+                                .transpose(0, 2, 3, 1),
+                                max_outputs=batch_size,
+                                step=epoch,
+                            )
+                if cfg.train_one_epoch:
+                    break
 
             if (
                 epoch + 1
@@ -252,10 +343,43 @@ def train_loop(
                 pipeline.save_pretrained(config.output_dir)
 
 
-args = (config, model, noise_scheduler, optimizer, train_dataloader, lr_scheduler)
 
 # notebook_launcher(train_loop, args, num_processes=1)
 config.num_epochs = 2000
 config.save_image_epochs = 400
 config.eval_batch_size = 2
+
+
+input_name = "interp_sdm"
+
+if ds_kwargs["use_cond_image"]:
+    if ds_kwargs["use_rgb_as_cond_image"]:
+        img_cond = "rgb"
+    else:
+        img_cond = "sdm"
+else:
+    img_cond = "none"
+
+if ds_kwargs["use_text_embed"]:
+    if ds_kwargs["use_rgb_as_text_embed"]:
+        text_cond = "rgb"
+    else:
+        text_cond = "sdm"
+else:
+    text_cond = "none"
+
+cond = f"{img_cond=}_{text_cond=}"
+exp_dir = f"{input_name=}/{cond=}/{cfg.lr=}_{cfg.timesteps=}"
+
+logdir = Path("./logs") if not cfg.is_cluster else Path(cfg.tmpdir) / "logs"
+if cfg.do_overfit:
+    logdir = logdir / config.output_dir
+else:
+    logdir = logdir / "train"
+exp_dir = f"{len(os.listdir(logdir)) + 1:03d}" if os.path.isdir(logdir) else "001"
+train_logdir = logdir / exp_dir / cond
+train_logdir.mkdir(parents=True, exist_ok=True)
+train_writer = tf.summary.create_file_writer(str(train_logdir))
+
+args = (train_writer, config, model, noise_scheduler, optimizer, train_dataloader, lr_scheduler, train_logdir)
 train_loop(*args)
