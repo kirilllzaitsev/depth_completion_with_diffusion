@@ -1,4 +1,7 @@
+import gc
+import itertools
 import os
+import shutil
 from pathlib import Path
 
 import comet_ml
@@ -6,7 +9,9 @@ import tensorflow as tf
 import torch
 import torch.optim as optim
 from load_data import load_data
+from model import init_model
 from rsl_depth_completion.conditional_diffusion.config import cfg
+from rsl_depth_completion.conditional_diffusion.train import train
 from rsl_depth_completion.conditional_diffusion.utils import (
     dict2mdtable,
     log_params_to_exp,
@@ -20,8 +25,9 @@ if cfg.is_cluster:
     if not os.path.exists(f"{cfg.tmpdir}/cluster"):
         os.system(f"tar -xvf /cluster/project/rsl/kzaitsev/dataset.tar -C {cfg.tmpdir}")
 
-import itertools
-import shutil
+
+gc.collect()
+torch.cuda.empty_cache()
 
 
 def product_dict(**kwargs):
@@ -89,14 +95,8 @@ print(
     len(train_dataloader) * train_dataloader.batch_size,
 )
 
-import gc
 
-from model import init_model
-
-gc.collect()
-torch.cuda.empty_cache()
-
-unets, imagen = init_model(cfg.timesteps, experiment, ds_kwargs)
+unets, imagen = init_model(experiment, ds_kwargs, cfg)
 
 unets[0].to(cfg.device)
 imagen.to(cfg.device)
@@ -136,7 +136,6 @@ train_writer = tf.summary.create_file_writer(str(train_logdir))
 with train_writer.as_default():
     tf.summary.text("hyperparams", dict2mdtable({**ds_kwargs, **cfg.params()}), 1)
 
-from train import train
 
 train(
     imagen,

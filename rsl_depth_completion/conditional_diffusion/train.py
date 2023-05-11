@@ -2,7 +2,7 @@ import cv2
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import torch
-from imagen_pytorch import Imagen
+from rsl_depth_completion.conditional_diffusion.imagen_pytorch import Imagen
 from rsl_depth_completion.conditional_diffusion.config import cfg
 from torchvision.utils import save_image
 from tqdm import tqdm

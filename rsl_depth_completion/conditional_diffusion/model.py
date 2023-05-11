@@ -2,7 +2,7 @@ from rsl_depth_completion.conditional_diffusion.imagen_pytorch import Imagen, Un
 from rsl_depth_completion.conditional_diffusion.utils import log_params_to_exp
 
 
-def init_model(timesteps, experiment, ds_kwargs):
+def init_model(experiment, ds_kwargs, cfg):
     unet_base_params = dict(
         dim=64,
         dim_mults=[1, 1, 2, 2, 4, 4],
@@ -21,34 +21,34 @@ def init_model(timesteps, experiment, ds_kwargs):
     )
 
     unet_base = Unet(**unet_base_params)
+    unets = [unet_base]
+    image_sizes = [64]
 
-    unet_super_res = Unet(
-        dim=64,
-        dim_mults=[1, 1, 2, 2, 4, 4],
-        channels=1,
-        channels_out=None,
-        text_embed_dim=512,
-        num_resnet_blocks=2,
-        layer_attns=[False, False, False, False, False, True],
-        layer_cross_attns=[False, False, False, False, False, True],
-        attn_heads=4,
-        lowres_cond=True,
-        memory_efficient=False,
-        attend_at_middle=False,
-        cond_dim=None,
-        cond_images_channels=cond_image_channels(ds_kwargs)
-    )
+    if cfg.use_super_res:
+        unet_super_res = Unet(
+            dim=64,
+            dim_mults=[1, 1, 2, 2, 4, 4],
+            channels=1,
+            channels_out=None,
+            text_embed_dim=512,
+            num_resnet_blocks=2,
+            layer_attns=[False, False, False, False, False, True],
+            layer_cross_attns=[False, False, False, False, False, True],
+            attn_heads=4,
+            lowres_cond=True,
+            memory_efficient=False,
+            attend_at_middle=False,
+            cond_dim=None,
+            cond_images_channels=cond_image_channels(ds_kwargs),
+        )
 
-    unets = [unet_base, unet_super_res]
-    image_sizes = [64, 128]
-
-    # unets = [unet_base]
-    # image_sizes = [64]
+        unets.append(unet_super_res)
+        image_sizes.append(128)
 
     imagen_params = dict(
         text_embed_dim=512,
         channels=1,
-        timesteps=timesteps,
+        timesteps=cfg.timesteps,
         loss_type="l2",
         lowres_sample_noise_level=0.2,
         dynamic_thresholding_percentile=0.9,
