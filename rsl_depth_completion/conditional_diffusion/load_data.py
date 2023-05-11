@@ -53,10 +53,11 @@ def load_data(ds_name="mnist", do_overfit=False, **ds_kwargs):
     else:
         raise ValueError(f"Unknown dataset: {ds_name}")
 
+    input_img_size = (128, 128)
     post_transform = tv.transforms.Compose(
         [
             # tv.transforms.RandomHorizontalFlip(),
-            # tv.transforms.Resize(img_size, antialias=True),
+            tv.transforms.Resize(input_img_size, antialias=True),
             tv.transforms.ToTensor(),
             tv.transforms.Lambda(lambda t: (t * 2) - 1),
         ]
@@ -67,10 +68,10 @@ def load_data(ds_name="mnist", do_overfit=False, **ds_kwargs):
         BATCH_SIZE = 1
         NUM_WORKERS = 0
     elif cfg.is_cluster:
-        BATCH_SIZE = 4
+        BATCH_SIZE = 1
         NUM_WORKERS = min(20, BATCH_SIZE)
     else:
-        BATCH_SIZE = 2
+        BATCH_SIZE = 1
         NUM_WORKERS = 0
 
     subset_range = range(0, BATCH_SIZE) if do_overfit else range(0, 400)

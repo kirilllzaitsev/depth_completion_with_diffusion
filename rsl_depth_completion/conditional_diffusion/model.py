@@ -1,4 +1,4 @@
-from imagen_pytorch import Imagen, Unet
+from rsl_depth_completion.conditional_diffusion.imagen_pytorch import Imagen, Unet
 from rsl_depth_completion.conditional_diffusion.utils import log_params_to_exp
 
 
@@ -40,6 +40,10 @@ def init_model(timesteps, experiment, ds_kwargs):
     )
 
     unets = [unet_base, unet_super_res]
+    image_sizes = [64, 128]
+
+    # unets = [unet_base]
+    # image_sizes = [64]
 
     imagen_params = dict(
         text_embed_dim=512,
@@ -49,7 +53,7 @@ def init_model(timesteps, experiment, ds_kwargs):
         lowres_sample_noise_level=0.2,
         dynamic_thresholding_percentile=0.9,
         only_train_unet_number=None,
-        image_sizes=[64, 128],
+        image_sizes=image_sizes,
         text_encoder_name="google/t5-v1_1-base",
         auto_normalize_img=False,
         cond_drop_prob=0.1,
