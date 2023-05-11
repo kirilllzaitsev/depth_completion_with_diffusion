@@ -3,6 +3,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+import comet_ml
 import tensorflow as tf
 import torch
 import torch.nn.functional as F
@@ -13,6 +14,10 @@ from PIL import Image
 from rsl_depth_completion.conditional_diffusion.config import cfg as cfg_cls
 from rsl_depth_completion.conditional_diffusion.load_data import load_data
 from rsl_depth_completion.conditional_diffusion.train import log_batch
+from rsl_depth_completion.conditional_diffusion.utils import (
+    dict2mdtable,
+    log_params_to_exp,
+)
 from rsl_depth_completion.diffusion.utils import set_seed
 from torchvision.utils import save_image
 from tqdm.auto import tqdm
@@ -57,6 +62,26 @@ ds, train_dataloader, val_dataloader = load_data(
     ds_name=ds_name, do_overfit=cfg.do_overfit, **ds_kwargs
 )
 
+experiment = comet_ml.Experiment(
+    api_key="W5npcWDiWeNPoB2OYkQvwQD0C",
+    project_name="rsl_depth_completion",
+    auto_metric_logging=True,
+    auto_param_logging=True,
+    auto_histogram_tensorboard_logging=True,
+    log_env_details=True,
+    log_env_host=False,
+    log_env_gpu=True,
+    log_env_cpu=True,
+    disabled=cfg.disabled,
+)
+log_params_to_exp(experiment, ds_kwargs, "dataset")
+log_params_to_exp(experiment, cfg.params(), "base_config")
+
+print(
+    "Number of train samples",
+    len(train_dataloader) * train_dataloader.batch_size,
+)
+
 
 @dataclass
 class TrainingConfig:
@@ -93,8 +118,6 @@ model = UNet2DModel(
     layers_per_block=2,  # how many ResNet layers to use per UNet block
     block_out_channels=(
         128,
-        128,
-        256,
         256,
         512,
         512,
@@ -102,16 +125,12 @@ model = UNet2DModel(
     down_block_types=(
         "DownBlock2D",  # a regular ResNet downsampling block
         "DownBlock2D",
-        "DownBlock2D",
-        "DownBlock2D",
         "AttnDownBlock2D",  # a ResNet downsampling block with spatial self-attention
         "DownBlock2D",
     ),
     up_block_types=(
         "UpBlock2D",  # a regular ResNet upsampling block
         "AttnUpBlock2D",  # a ResNet upsampling block with spatial self-attention
-        "UpBlock2D",
-        "UpBlock2D",
         "UpBlock2D",
         "UpBlock2D",
     ),
@@ -125,6 +144,13 @@ print("Input shape:", sample_image.shape)
 print("Output shape:", model(sample_image, timestep=0).sample.shape)
 
 noise_scheduler = DDPMScheduler(num_train_timesteps=config.num_train_timesteps)
+noise = torch.randn(sample_image.shape)
+timesteps = torch.LongTensor([50])
+noisy_image = noise_scheduler.add_noise(sample_image, noise, timesteps)
+
+Image.fromarray(((noisy_image.permute(0, 2, 3, 1) + 1.0) * 127.5).type(torch.uint8).numpy()[0][:,:,-1], 'L')
+
+print('did the test')
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 # lr_scheduler = get_cosine_schedule_with_warmup(
@@ -201,7 +227,7 @@ def train_loop(
         log_batch(eval_batch, epoch=1, batch_size=batch_size, prefix="eval")
 
     # Now you train the model
-    for epoch in range(config.num_epochs):
+    for epoch in range(cfg.num_epochs):
         progress_bar_epoch.set_description(f"Epoch {epoch}")
         progress_bar = tqdm(
             total=len(train_dataloader),
@@ -216,15 +242,15 @@ def train_loop(
         running_loss = {"loss": 0, "diff_to_orig_img": 0}
 
         for batch_idx, batch in data_gen:
+            clean_images = batch["image"]
             if "text_embed" in batch:
-                text_embeds = batch["text_embed"].to(cfg.device)
+                text_embeds = batch["text_embed"].to(clean_images.device)
             else:
                 text_embeds = None
             if "cond_image" in batch:
-                cond_images = batch["cond_image"].to(cfg.device)
+                cond_images = batch["cond_image"].to(clean_images.device)
             else:
                 cond_images = None
-            clean_images = batch["image"]
             # Sample noise to add to the images
             noise = torch.randn(clean_images.shape).to(clean_images.device)
             bs = clean_images.shape[0]
@@ -294,12 +320,12 @@ def train_loop(
 
                 if cfg.do_sample:
                     eval_text_embeds = (
-                        eval_batch["text_embed"].to(cfg.device)
+                        eval_batch["text_embed"].to(clean_images.device)
                         if "text_embed" in eval_batch
                         else None
                     )
                     eval_cond_images = (
-                        eval_batch["cond_image"].to(cfg.device)
+                        eval_batch["cond_image"].to(clean_images.device)
                         if "cond_image" in eval_batch
                         else None
                     )
@@ -343,11 +369,7 @@ def train_loop(
                 pipeline.save_pretrained(config.output_dir)
 
 
-
 # notebook_launcher(train_loop, args, num_processes=1)
-config.num_epochs = 2000
-config.save_image_epochs = 400
-config.eval_batch_size = 2
 
 
 input_name = "interp_sdm"
@@ -381,5 +403,26 @@ train_logdir = logdir / exp_dir / cond
 train_logdir.mkdir(parents=True, exist_ok=True)
 train_writer = tf.summary.create_file_writer(str(train_logdir))
 
-args = (train_writer, config, model, noise_scheduler, optimizer, train_dataloader, lr_scheduler, train_logdir)
+args = (
+    train_writer,
+    config,
+    model,
+    noise_scheduler,
+    optimizer,
+    train_dataloader,
+    lr_scheduler,
+    train_logdir,
+)
 train_loop(*args)
+
+with train_writer.as_default():
+    tf.summary.text("hyperparams", dict2mdtable({**ds_kwargs, **cfg.params()}), 1)
+
+experiment.add_tags([k for k, v in ds_kwargs.items() if v])
+experiment.add_tags(cfg.other_tags)
+experiment.add_tag(ds_name)
+experiment.add_tag("stable-diffusion")
+experiment.add_tag("overfit" if cfg.do_overfit else "full_data")
+# experiment.add_tag("debug" if cfg.do_debug else "train")
+
+experiment.end()
