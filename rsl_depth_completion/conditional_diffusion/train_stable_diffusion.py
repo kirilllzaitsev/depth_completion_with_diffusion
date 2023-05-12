@@ -166,7 +166,6 @@ lr_scheduler = get_cosine_schedule_with_warmup(
     num_warmup_steps=config.lr_warmup_steps,
     num_training_steps=(len(train_dataloader) * config.num_epochs),
 )
-lr_scheduler = None
 
 
 def make_grid(images, rows, cols):
@@ -205,30 +204,10 @@ def train_loop(
     optimizer,
     train_dataloader,
     lr_scheduler,
-    out_dir,
 ):
-    # Initialize accelerator and tensorboard logging
-    accelerator = Accelerator(
-        mixed_precision=config.mixed_precision,
-        gradient_accumulation_steps=config.gradient_accumulation_steps,
-        log_with="tensorboard",
-        logging_dir=os.path.join(config.output_dir, "logs"),
-    )
-    if accelerator.is_main_process:
-        if config.output_dir is not None:
-            os.makedirs(config.output_dir, exist_ok=True)
-        accelerator.init_trackers("train_example")
-
-    # Prepare everything
-    # There is no specific order to remember, you just need to unpack the
-    # objects in the same order you gave them to the prepare method.
-    model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
-        model, optimizer, train_dataloader, lr_scheduler
-    )
-
     global_step = 0
 
-    progress_bar_epoch = tqdm(total=cfg.num_epochs, disable=False)
+    progress_bar_epoch = tqdm(total=cfg.num_epochs)
 
     eval_batch = next(iter(train_dataloader))
     batch_size = config.train_batch_size
@@ -240,17 +219,10 @@ def train_loop(
         progress_bar_epoch.set_description(f"Epoch {epoch}")
         progress_bar = tqdm(
             total=len(train_dataloader),
-            disable=True or not accelerator.is_local_main_process,
         )
         running_loss = {"loss": 0, "diff_to_orig_img": 0}
-        if cfg.do_overfit:
-            data_gen = enumerate(train_dataloader)
-        else:
-            data_gen = tqdm(enumerate(train_dataloader), total=len(train_dataloader))
 
-        running_loss = {"loss": 0, "diff_to_orig_img": 0}
-
-        for batch_idx, batch in data_gen:
+        for batch_idx, batch in enumerate(train_dataloader):
             clean_images = batch["image"]
             if "text_embed" in batch:
                 text_embeds = batch["text_embed"].to(clean_images.device)
@@ -276,16 +248,15 @@ def train_loop(
             # (this is the forward diffusion process)
             noisy_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
 
-            with accelerator.accumulate(model):
-                # Predict the noise residual
-                noise_pred = model(noisy_images, timesteps, return_dict=False)[0]
-                loss = F.mse_loss(noise_pred, noise)
-                accelerator.backward(loss)
+            # Predict the noise residual
+            noise_pred = model(noisy_images, timesteps, return_dict=False)[0]
+            loss = F.mse_loss(noise_pred, noise)
+            loss.backward()
 
-                accelerator.clip_grad_norm_(model.parameters(), 1.0)
-                optimizer.step()
-                lr_scheduler.step()
-                optimizer.zero_grad()
+            # accelerator.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+            lr_scheduler.step()
+            optimizer.zero_grad()
 
             loss = loss.detach().item()
             running_loss["loss"] += loss
@@ -303,65 +274,52 @@ def train_loop(
 
             progress_bar.update(1)
             logs = {
-                "loss": loss,
-                "lr": optimizer.optimizer.param_groups[0]["lr"],
+                "batch_loss": loss,
                 "step": global_step,
             }
-            # logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "step": global_step}
             progress_bar.set_postfix(**logs)
-            accelerator.log(logs, step=global_step)
             global_step += 1
 
-        # After each epoch you optionally sample some demo images with evaluate() and save the model
-        if accelerator.is_main_process:
-            pipeline = DDPMPipeline(
-                unet=accelerator.unwrap_model(model),
-                scheduler=noise_scheduler,
-            )
+        pipeline = DDPMPipeline(
+            unet=model,
+            scheduler=noise_scheduler,
+        )
 
-            with train_writer.as_default():
-                tf.summary.scalar("epoch/loss", running_loss["loss"], step=epoch)
+        with train_writer.as_default():
+            tf.summary.scalar("epoch/loss", running_loss["loss"], step=epoch)
 
-            progress_bar_epoch.update(1)
+        progress_bar_epoch.update(1)
 
-            if (epoch - 1) % cfg.sampling_freq == 0 or epoch == cfg.num_epochs - 1:
-                progress_bar_epoch.set_postfix(**running_loss)
+        if (epoch - 1) % cfg.sampling_freq == 0 or epoch == cfg.num_epochs - 1:
+            progress_bar_epoch.set_postfix(**running_loss)
 
-                if cfg.do_sample:
-                    eval_text_embeds = (
-                        eval_batch["text_embed"].to(clean_images.device)
-                        if "text_embed" in eval_batch
-                        else None
+            if cfg.do_sample:
+                eval_text_embeds = (
+                    eval_batch["text_embed"].to(clean_images.device)
+                    if "text_embed" in eval_batch
+                    else None
+                )
+                eval_cond_images = (
+                    eval_batch["cond_image"].to(clean_images.device)
+                    if "cond_image" in eval_batch
+                    else None
+                )
+
+                samples = evaluate(config, epoch, pipeline, output_type="numpy")
+
+                with train_writer.as_default():
+                    # relies on return_all_unet_outputs=True
+                    # out_path = f"{out_dir}/sample-{epoch}.png"
+                    # save_image(torch.from_numpy(samples), str(out_path), nrow=10)
+                    name = "samples"
+                    tf.summary.image(
+                        name,
+                        samples,
+                        max_outputs=batch_size,
+                        step=epoch,
                     )
-                    eval_cond_images = (
-                        eval_batch["cond_image"].to(clean_images.device)
-                        if "cond_image" in eval_batch
-                        else None
-                    )
-
-                    # samples = trainer.sample(
-                    #     text_embeds=eval_text_embeds,
-                    #     cond_images=eval_cond_images,
-                    #     cond_scale=cfg.cond_scale,
-                    #     batch_size=batch_size,
-                    #     stop_at_unet_number=None,
-                    #     return_all_unet_outputs=True,
-                    # )
-                    samples = evaluate(config, epoch, pipeline, output_type="numpy")
-
-                    with train_writer.as_default():
-                        # relies on return_all_unet_outputs=True
-                        # out_path = f"{out_dir}/sample-{epoch}.png"
-                        # save_image(torch.from_numpy(samples), str(out_path), nrow=10)
-                        name = "samples"
-                        tf.summary.image(
-                            name,
-                            samples,
-                            max_outputs=batch_size,
-                            step=epoch,
-                        )
-                if cfg.train_one_epoch:
-                    break
+            if cfg.train_one_epoch:
+                break
 
             if (
                 epoch + 1
