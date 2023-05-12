@@ -18,5 +18,5 @@ setup(
             "eval_command = rsl_depth_completion.eval:main",
         ]
     },
-    zip_safe = False,
+    zip_safe=False,
 )

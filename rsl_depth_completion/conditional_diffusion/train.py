@@ -64,6 +64,11 @@ def train(cfg, trainer: ImagenTrainer, train_dataloader, train_writer, out_dir):
 
         if (epoch - 1) % cfg.sampling_freq == 0 or epoch == cfg.num_epochs - 1:
             progress_bar.set_postfix(**running_loss)
+            if cfg.do_save_model:
+                if cfg.do_save_last_model:
+                    trainer.save(f"{out_dir}/model-last.pt")
+                else:
+                    trainer.save(f"{out_dir}/model-{epoch}.pt")
 
             if cfg.do_sample:
                 eval_text_embeds = (

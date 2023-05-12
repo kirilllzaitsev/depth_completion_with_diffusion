@@ -45,7 +45,7 @@ ds_params = product_dict(
     use_rgb_as_cond_image=[True, False],
 )
 
-logdir = Path("./logs") if not cfg.is_cluster else Path(cfg.tmpdir) / "logs"
+logdir = Path("./logs") if not cfg.is_cluster else Path(cfg.cluster_logdir)
 if cfg.do_overfit:
     logdir = logdir / "standalone_trainer"
 else:
