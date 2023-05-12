@@ -53,7 +53,7 @@ def load_data(ds_name="mnist", do_overfit=False, **ds_kwargs):
     else:
         raise ValueError(f"Unknown dataset: {ds_name}")
 
-    input_img_size = (128, 128)
+    input_img_size = (64, 64)
     post_transform = tv.transforms.Compose(
         [
             # tv.transforms.RandomHorizontalFlip(),
@@ -64,17 +64,7 @@ def load_data(ds_name="mnist", do_overfit=False, **ds_kwargs):
     )
     ds = DMDataset(sub_ds, transform=post_transform)
 
-    if do_overfit:
-        BATCH_SIZE = 1
-        NUM_WORKERS = 0
-    elif cfg.is_cluster:
-        BATCH_SIZE = 1
-        NUM_WORKERS = min(20, BATCH_SIZE)
-    else:
-        BATCH_SIZE = 1
-        NUM_WORKERS = 0
-
-    subset_range = range(0, BATCH_SIZE) if do_overfit else range(0, 400)
+    subset_range = range(0, cfg.batch_size) if do_overfit else range(0, 400)
 
     ds_subset = torch.utils.data.Subset(
         ds,
@@ -91,8 +81,8 @@ def load_data(ds_name="mnist", do_overfit=False, **ds_kwargs):
         valid_dataset = ds_subset
 
     dl_opts = {
-        "batch_size": BATCH_SIZE,
-        "num_workers": NUM_WORKERS,
+        "batch_size": cfg.batch_size,
+        "num_workers": cfg.num_workers,
         "drop_last": True,
     }
     train_dataloader = torch.utils.data.DataLoader(

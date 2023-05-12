@@ -1,4 +1,4 @@
-from rsl_depth_completion.conditional_diffusion.imagen_pytorch import Imagen, Unet
+from rsl_depth_completion.conditional_diffusion.custom_imagen_pytorch import Imagen, Unet
 from rsl_depth_completion.conditional_diffusion.utils import log_params_to_exp
 
 
