@@ -15,6 +15,8 @@ def train(cfg, trainer: ImagenTrainer, train_dataloader, train_writer, out_dir):
     with train_writer.as_default():
         log_batch(eval_batch, epoch=1, batch_size=batch_size, prefix="eval")
 
+    global_step = 0
+
     for epoch in range(cfg.num_epochs):
         progress_bar.set_description(f"Epoch {epoch}")
         running_loss = {"loss": 0, "diff_to_orig_img": 0}
@@ -45,14 +47,15 @@ def train(cfg, trainer: ImagenTrainer, train_dataloader, train_writer, out_dir):
 
             with train_writer.as_default():
                 tf.summary.scalar(
-                    "batch/loss",
+                    "step/loss",
                     loss,
-                    step=epoch * len(train_dataloader) + batch_idx,
+                    step=global_step,
                 )
                 if cfg.do_overfit and cfg.do_save_inputs_every_batch:
                     log_batch(batch, epoch, len(images), prefix="train")
             if cfg.do_overfit and batch_idx == 0:
                 break
+            global_step += 1
 
         with train_writer.as_default():
             tf.summary.scalar("epoch/loss", running_loss["loss"], step=epoch)
@@ -97,7 +100,7 @@ def train(cfg, trainer: ImagenTrainer, train_dataloader, train_writer, out_dir):
                             .numpy()
                             .transpose(0, 2, 3, 1),
                             max_outputs=batch_size,
-                            step=epoch,
+                            step=global_step,
                         )
             if cfg.train_one_epoch:
                 break
@@ -114,19 +117,19 @@ def log_batch(batch, epoch, batch_size, prefix=None):
 
     tf.summary.image(
         train_img_name,
-        batch["image"].numpy().transpose(0, 2, 3, 1),
+        batch["image"].cpu().numpy().transpose(0, 2, 3, 1),
         max_outputs=batch_size,
         step=epoch,
     )
     tf.summary.image(
         sdm_name,
-        batch["sdm"].numpy().transpose(0, 2, 3, 1),
+        batch["sdm"].cpu().numpy().transpose(0, 2, 3, 1),
         max_outputs=batch_size,
         step=epoch,
     )
     tf.summary.image(
         rgb_name,
-        batch["rgb"].numpy().transpose(0, 2, 3, 1),
+        batch["rgb"].cpu().numpy().transpose(0, 2, 3, 1),
         max_outputs=batch_size,
         step=epoch,
     )

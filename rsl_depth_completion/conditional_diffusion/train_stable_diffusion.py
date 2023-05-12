@@ -22,7 +22,9 @@ from rsl_depth_completion.diffusion.utils import set_seed
 from torchvision.utils import save_image
 from tqdm.auto import tqdm
 
-cfg = cfg_cls(path="configs/overfit.yaml")
+cfg = cfg_cls(path=cfg_cls.default_file)
+cfg.timesteps = 300
+
 
 set_seed(cfg.seed)
 torch.backends.cudnn.benchmark = True
@@ -34,9 +36,6 @@ if cfg.is_cluster:
 
 gc.collect()
 torch.cuda.empty_cache()
-
-
-ds_name = "mnist"
 
 best_params = {
     "kitti": {
@@ -51,7 +50,7 @@ best_params = {
     },
 }
 
-ds_kwargs = best_params[ds_name]
+ds_kwargs = best_params[cfg.ds_name]
 
 ds_kwargs["use_rgb_as_text_embed"] = not ds_kwargs["use_rgb_as_cond_image"]
 ds_kwargs["include_sdm_and_rgb_in_sample"] = True
@@ -59,7 +58,7 @@ ds_kwargs["do_crop"] = True
 print(ds_kwargs)
 
 ds, train_dataloader, val_dataloader = load_data(
-    ds_name=ds_name, do_overfit=cfg.do_overfit, **ds_kwargs
+    ds_name=cfg.ds_name, do_overfit=cfg.do_overfit, **ds_kwargs
 )
 
 experiment = comet_ml.Experiment(
@@ -136,8 +135,11 @@ model = UNet2DModel(
     ),
 )
 
-print(f"Number of parameters: {sum(p.numel() for p in model.parameters()):,}")
-
+num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+print(
+    "Number of parameters in model",
+    num_params,
+)
 
 sample_image = ds[0]["image"].unsqueeze(0)
 print("Input shape:", sample_image.shape)
@@ -145,12 +147,17 @@ print("Output shape:", model(sample_image, timestep=0).sample.shape)
 
 noise_scheduler = DDPMScheduler(num_train_timesteps=config.num_train_timesteps)
 noise = torch.randn(sample_image.shape)
-timesteps = torch.LongTensor([50])
+timesteps = torch.LongTensor([10])
 noisy_image = noise_scheduler.add_noise(sample_image, noise, timesteps)
 
-Image.fromarray(((noisy_image.permute(0, 2, 3, 1) + 1.0) * 127.5).type(torch.uint8).numpy()[0][:,:,-1], 'L')
+Image.fromarray(
+    ((noisy_image.permute(0, 2, 3, 1) + 1.0) * 127.5)
+    .type(torch.uint8)
+    .numpy()[0][:, :, -1],
+    "L",
+)
 
-print('did the test')
+print("did the test")
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 # lr_scheduler = get_cosine_schedule_with_warmup(
@@ -169,22 +176,23 @@ def make_grid(images, rows, cols):
     return grid
 
 
-def evaluate(config, epoch, pipeline):
+def evaluate(config, epoch, pipeline, output_type="pil"):
     # Sample some images from random noise (this is the backward diffusion process).
     # The default pipeline output type is `List[PIL.Image]`
     images = pipeline(
         batch_size=config.eval_batch_size,
         generator=torch.manual_seed(config.seed),
         num_inference_steps=config.num_inference_timesteps,
+        output_type=output_type,
     ).images
 
     # Make a grid out of the images
-    image_grid = make_grid(images, rows=4, cols=4)
+    # image_grid = make_grid(images, rows=4, cols=4)
 
-    # Save the images
-    test_dir = os.path.join(config.output_dir, "samples")
-    os.makedirs(test_dir, exist_ok=True)
-    image_grid.save(f"{test_dir}/{epoch:04d}.png")
+    # # Save the images
+    # test_dir = os.path.join(config.output_dir, "samples")
+    # os.makedirs(test_dir, exist_ok=True)
+    # image_grid.save(f"{test_dir}/{epoch:04d}.png")
     return images
 
 
@@ -205,17 +213,17 @@ def train_loop(
         log_with="tensorboard",
         logging_dir=os.path.join(config.output_dir, "logs"),
     )
-    if accelerator.is_main_process:
-        if config.output_dir is not None:
-            os.makedirs(config.output_dir, exist_ok=True)
-        accelerator.init_trackers("train_example")
+    # if accelerator.is_main_process:
+    #     if config.output_dir is not None:
+    #         os.makedirs(config.output_dir, exist_ok=True)
+    #     accelerator.init_trackers("train_example")
 
     # Prepare everything
     # There is no specific order to remember, you just need to unpack the
     # objects in the same order you gave them to the prepare method.
-    model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
-        model, optimizer, train_dataloader, lr_scheduler
-    )
+    # model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
+    #     model, optimizer, train_dataloader, lr_scheduler
+    # )
 
     global_step = 0
 
@@ -267,16 +275,17 @@ def train_loop(
             # (this is the forward diffusion process)
             noisy_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
 
-            with accelerator.accumulate(model):
-                # Predict the noise residual
-                noise_pred = model(noisy_images, timesteps, return_dict=False)[0]
-                loss = F.mse_loss(noise_pred, noise)
-                accelerator.backward(loss)
+            # with accelerator.accumulate(model):
+            # Predict the noise residual
+            noise_pred = model(noisy_images, timesteps, return_dict=False)[0]
+            loss = F.mse_loss(noise_pred, noise)
+            loss.backward()
+            # accelerator.backward(loss)
 
-                accelerator.clip_grad_norm_(model.parameters(), 1.0)
-                optimizer.step()
-                # lr_scheduler.step()
-                optimizer.zero_grad()
+            # accelerator.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+            # lr_scheduler.step()
+            optimizer.zero_grad()
 
             loss = loss.detach().item()
             running_loss["loss"] += loss
@@ -300,7 +309,7 @@ def train_loop(
             }
             # logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "step": global_step}
             progress_bar.set_postfix(**logs)
-            accelerator.log(logs, step=global_step)
+            # accelerator.log(logs, step=global_step)
             global_step += 1
 
         # After each epoch you optionally sample some demo images with evaluate() and save the model
@@ -338,28 +347,19 @@ def train_loop(
                     #     stop_at_unet_number=None,
                     #     return_all_unet_outputs=True,
                     # )
-                    samples = evaluate(config, epoch, pipeline)
+                    samples = evaluate(config, epoch, pipeline, output_type="numpy")
 
                     with train_writer.as_default():
                         # relies on return_all_unet_outputs=True
-                        for unet_idx in range(len(samples)):
-                            out_path = f"{out_dir}/sample-{epoch}-unet-{unet_idx}.png"
-                            save_image(samples[unet_idx], str(out_path), nrow=10)
-                            name = (
-                                f"samples/unet_{unet_idx}"
-                                if unet_idx > 0
-                                else "samples"
-                            )
-                            tf.summary.image(
-                                name,
-                                samples[unet_idx]
-                                .cpu()
-                                .detach()
-                                .numpy()
-                                .transpose(0, 2, 3, 1),
-                                max_outputs=batch_size,
-                                step=epoch,
-                            )
+                        # out_path = f"{out_dir}/sample-{epoch}.png"
+                        # save_image(torch.from_numpy(samples), str(out_path), nrow=10)
+                        name = "samples"
+                        tf.summary.image(
+                            name,
+                            samples,
+                            max_outputs=batch_size,
+                            step=epoch,
+                        )
                 if cfg.train_one_epoch:
                     break
 
@@ -416,11 +416,16 @@ args = (
 train_loop(*args)
 
 with train_writer.as_default():
-    tf.summary.text("hyperparams", dict2mdtable({**ds_kwargs, **cfg.params()}), 1)
+    tf.summary.text(
+        "hyperparams",
+        dict2mdtable({**ds_kwargs, **cfg.params(), "num_params": num_params}),
+        1,
+    )
 
 experiment.add_tags([k for k, v in ds_kwargs.items() if v])
-experiment.add_tags(cfg.other_tags)
-experiment.add_tag(ds_name)
+if hasattr(cfg, "other_tags"):
+    experiment.add_tags(cfg.other_tags)
+experiment.add_tag(cfg.ds_name)
 experiment.add_tag("stable-diffusion")
 experiment.add_tag("overfit" if cfg.do_overfit else "full_data")
 # experiment.add_tag("debug" if cfg.do_debug else "train")

@@ -10,13 +10,16 @@ import torch
 import torch.optim as optim
 from load_data import load_data
 from model import init_model
-from rsl_depth_completion.conditional_diffusion.config import cfg
+from rsl_depth_completion.conditional_diffusion.config import cfg as cfg_cls
+from rsl_depth_completion.conditional_diffusion.custom_trainer import ImagenTrainer
 from rsl_depth_completion.conditional_diffusion.train import train
 from rsl_depth_completion.conditional_diffusion.utils import (
     dict2mdtable,
     log_params_to_exp,
 )
 from rsl_depth_completion.diffusion.utils import set_seed
+
+cfg = cfg_cls(path=cfg_cls.default_file)
 
 set_seed(cfg.seed)
 torch.backends.cudnn.benchmark = True
@@ -44,13 +47,13 @@ ds_params = product_dict(
 
 logdir = Path("./logs") if not cfg.is_cluster else Path(cfg.tmpdir) / "logs"
 if cfg.do_overfit:
-    logdir = logdir / "debug2"
+    logdir = logdir / "standalone_trainer"
 else:
     logdir = logdir / "train"
 
 # shutil.rmtree(logdir, ignore_errors=True)
 
-ds_name = "mnist"
+
 best_params = {
     "kitti": {
         "use_text_embed": False,
@@ -64,7 +67,7 @@ best_params = {
     },
 }
 
-ds_kwargs = best_params[ds_name]
+ds_kwargs = best_params[cfg.ds_name]
 
 ds_kwargs["use_rgb_as_text_embed"] = not ds_kwargs["use_rgb_as_cond_image"]
 ds_kwargs["include_sdm_and_rgb_in_sample"] = True
@@ -72,7 +75,7 @@ ds_kwargs["do_crop"] = True
 print(ds_kwargs)
 
 ds, train_dataloader, val_dataloader = load_data(
-    ds_name=ds_name, do_overfit=cfg.do_overfit, **ds_kwargs
+    ds_name=cfg.ds_name, do_overfit=cfg.do_overfit, **ds_kwargs
 )
 
 experiment = comet_ml.Experiment(
@@ -96,17 +99,13 @@ print(
 )
 
 
-unets, imagen = init_model(experiment, ds_kwargs, cfg)
+unets, model = init_model(experiment, ds_kwargs, cfg)
 
-unets[0].to(cfg.device)
-imagen.to(cfg.device)
-
+num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 print(
     "Number of parameters in model",
-    sum(p.numel() for p in imagen.parameters() if p.requires_grad),
+    num_params,
 )
-
-optimizer = optim.Adam(imagen.parameters(), lr=cfg.lr)
 
 input_name = "interp_sdm"
 
@@ -133,21 +132,30 @@ exp_dir = f"{len(os.listdir(logdir)) + 1:03d}" if os.path.isdir(logdir) else "00
 train_logdir = logdir / exp_dir / cond
 train_logdir.mkdir(parents=True, exist_ok=True)
 train_writer = tf.summary.create_file_writer(str(train_logdir))
-with train_writer.as_default():
-    tf.summary.text("hyperparams", dict2mdtable({**ds_kwargs, **cfg.params()}), 1)
+
+trainer = ImagenTrainer(model, use_lion=False, lr=cfg.lr)
 
 
 train(
-    imagen,
-    optimizer,
+    cfg,
+    trainer,
     train_dataloader,
     out_dir=train_logdir,
     train_writer=train_writer,
 )
 
+with train_writer.as_default():
+    tf.summary.text(
+        "hyperparams",
+        dict2mdtable({**ds_kwargs, **cfg.params(), "num_params": num_params}),
+        1,
+    )
+
 experiment.add_tags([k for k, v in ds_kwargs.items() if v])
-experiment.add_tags(cfg.other_tags)
-experiment.add_tag(ds_name)
+if hasattr(cfg, "other_tags"):
+    experiment.add_tags(cfg.other_tags)
+experiment.add_tag("imagen")
+experiment.add_tag(cfg.ds_name)
 experiment.add_tag("overfit" if cfg.do_overfit else "full_data")
 # experiment.add_tag("debug" if cfg.do_debug else "train")
 
