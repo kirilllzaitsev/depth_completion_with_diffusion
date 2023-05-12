@@ -9,6 +9,7 @@ import torch
 import torch.nn.functional as F
 from accelerate import Accelerator
 from diffusers import DDPMPipeline, DDPMScheduler, UNet2DModel
+from diffusers.optimization import get_cosine_schedule_with_warmup
 from huggingface_hub import HfFolder, Repository, whoami
 from PIL import Image
 from rsl_depth_completion.conditional_diffusion.config import cfg as cfg_cls
@@ -111,7 +112,7 @@ config = TrainingConfig()
 
 
 model = UNet2DModel(
-    sample_size=config.image_size,  # the target image resolution
+    sample_size=64,  # the target image resolution
     in_channels=1,  # the number of input channels, 3 for RGB images
     out_channels=1,  # the number of output channels
     layers_per_block=2,  # how many ResNet layers to use per UNet block
@@ -160,11 +161,11 @@ Image.fromarray(
 print("did the test")
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
-# lr_scheduler = get_cosine_schedule_with_warmup(
-#     optimizer=optimizer,
-#     num_warmup_steps=config.lr_warmup_steps,
-#     num_training_steps=(len(train_dataloader) * config.num_epochs),
-# )
+lr_scheduler = get_cosine_schedule_with_warmup(
+    optimizer=optimizer,
+    num_warmup_steps=config.lr_warmup_steps,
+    num_training_steps=(len(train_dataloader) * config.num_epochs),
+)
 lr_scheduler = None
 
 
