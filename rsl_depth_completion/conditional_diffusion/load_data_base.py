@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import torch
-from utils import load_extractors
+from rsl_depth_completion.conditional_diffusion.utils import load_extractors
 
 
 class BaseDMDataset(torch.utils.data.Dataset):

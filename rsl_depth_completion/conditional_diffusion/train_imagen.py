@@ -75,7 +75,7 @@ ds_kwargs["do_crop"] = True
 print(ds_kwargs)
 
 ds, train_dataloader, val_dataloader = load_data(
-    ds_name=cfg.ds_name, do_overfit=cfg.do_overfit, **ds_kwargs
+    ds_name=cfg.ds_name, do_overfit=cfg.do_overfit, cfg=cfg, **ds_kwargs
 )
 
 experiment = comet_ml.Experiment(

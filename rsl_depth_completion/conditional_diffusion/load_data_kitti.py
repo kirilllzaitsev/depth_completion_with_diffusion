@@ -3,9 +3,9 @@ import argparse
 import torch
 
 # from kbnet import data_utils
-import utils as data_utils
+# import utils as data_utils
 import yaml
-from rsl_depth_completion.conditional_diffusion import utils
+from rsl_depth_completion.conditional_diffusion import utils as data_utils
 from rsl_depth_completion.conditional_diffusion.load_data_base import BaseDMDataset
 from rsl_depth_completion.data.kitti.kitti_dataset import CustomKittiDCDataset
 
@@ -65,8 +65,8 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
         sparse_dm /= self.max_depth
 
         interpolated_sparse_dm = torch.from_numpy(
-            # utils.infill_sparse_depth(sparse_dm.numpy())
-            utils.interpolate_sparse_depth(
+            # data_utils.infill_sparse_depth(sparse_dm.numpy())
+            data_utils.interpolate_sparse_depth(
                 sparse_dm.squeeze().numpy(), do_multiscale=True
             )
         ).unsqueeze(2)

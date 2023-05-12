@@ -2,8 +2,7 @@ from functools import partial
 
 import torch
 import torchvision as tv
-from load_data_mnist import MNISTDMDataset, mnist_transforms
-from rsl_depth_completion.conditional_diffusion.config import cfg
+from rsl_depth_completion.conditional_diffusion.load_data_mnist import MNISTDMDataset, mnist_transforms
 from rsl_depth_completion.conditional_diffusion.load_data_kitti import KITTIDMDataset
 
 # from load_data_kitti import KITTIDMDataset
@@ -40,7 +39,7 @@ mnist_ds_internal_transform = partial(
 )
 
 
-def load_data(ds_name="mnist", do_overfit=False, **ds_kwargs):
+def load_data(ds_name="mnist", do_overfit=False, cfg=None, **ds_kwargs):
     if ds_name == "mnist":
         sub_ds = MNISTDMDataset(
             img_transform=mnist_ds_internal_transform,

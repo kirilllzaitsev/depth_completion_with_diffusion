@@ -1,7 +1,7 @@
 import torch
 from datasets import load_dataset
 from rsl_depth_completion.conditional_diffusion.load_data_base import BaseDMDataset
-from utils import load_extractors
+from rsl_depth_completion.conditional_diffusion.utils import load_extractors
 
 dataset = load_dataset("fashion_mnist")
 extractor_model, extractor_processor = load_extractors()
