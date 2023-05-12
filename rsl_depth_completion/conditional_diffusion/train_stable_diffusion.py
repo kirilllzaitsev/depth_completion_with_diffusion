@@ -58,7 +58,7 @@ ds_kwargs["do_crop"] = True
 print(ds_kwargs)
 
 ds, train_dataloader, val_dataloader = load_data(
-    ds_name=cfg.ds_name, do_overfit=cfg.do_overfit, **ds_kwargs
+    ds_name=cfg.ds_name, do_overfit=cfg.do_overfit, cfg=cfg, **ds_kwargs
 )
 
 experiment = comet_ml.Experiment(
@@ -213,17 +213,17 @@ def train_loop(
         log_with="tensorboard",
         logging_dir=os.path.join(config.output_dir, "logs"),
     )
-    # if accelerator.is_main_process:
-    #     if config.output_dir is not None:
-    #         os.makedirs(config.output_dir, exist_ok=True)
-    #     accelerator.init_trackers("train_example")
+    if accelerator.is_main_process:
+        if config.output_dir is not None:
+            os.makedirs(config.output_dir, exist_ok=True)
+        accelerator.init_trackers("train_example")
 
     # Prepare everything
     # There is no specific order to remember, you just need to unpack the
     # objects in the same order you gave them to the prepare method.
-    # model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
-    #     model, optimizer, train_dataloader, lr_scheduler
-    # )
+    model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
+        model, optimizer, train_dataloader, lr_scheduler
+    )
 
     global_step = 0
 
@@ -275,17 +275,16 @@ def train_loop(
             # (this is the forward diffusion process)
             noisy_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
 
-            # with accelerator.accumulate(model):
-            # Predict the noise residual
-            noise_pred = model(noisy_images, timesteps, return_dict=False)[0]
-            loss = F.mse_loss(noise_pred, noise)
-            loss.backward()
-            # accelerator.backward(loss)
+            with accelerator.accumulate(model):
+                # Predict the noise residual
+                noise_pred = model(noisy_images, timesteps, return_dict=False)[0]
+                loss = F.mse_loss(noise_pred, noise)
+                accelerator.backward(loss)
 
-            # accelerator.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
-            # lr_scheduler.step()
-            optimizer.zero_grad()
+                accelerator.clip_grad_norm_(model.parameters(), 1.0)
+                optimizer.step()
+                lr_scheduler.step()
+                optimizer.zero_grad()
 
             loss = loss.detach().item()
             running_loss["loss"] += loss
@@ -309,7 +308,7 @@ def train_loop(
             }
             # logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "step": global_step}
             progress_bar.set_postfix(**logs)
-            # accelerator.log(logs, step=global_step)
+            accelerator.log(logs, step=global_step)
             global_step += 1
 
         # After each epoch you optionally sample some demo images with evaluate() and save the model
