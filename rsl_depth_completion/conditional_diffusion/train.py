@@ -25,13 +25,13 @@ def train(cfg, trainer: ImagenTrainer, train_dataloader, train_writer, out_dir):
         else:
             data_gen = tqdm(enumerate(train_dataloader), total=len(train_dataloader))
         for batch_idx, batch in data_gen:
-            images = batch["image"].to(cfg.device)
+            images = batch["image"]
             if "text_embed" in batch:
-                text_embeds = batch["text_embed"].to(cfg.device)
+                text_embeds = batch["text_embed"]
             else:
                 text_embeds = None
             if "cond_image" in batch:
-                cond_images = batch["cond_image"].to(cfg.device)
+                cond_images = batch["cond_image"]
             else:
                 cond_images = None
             for i in range(1, len(trainer.imagen.unets) + 1):
@@ -40,6 +40,7 @@ def train(cfg, trainer: ImagenTrainer, train_dataloader, train_writer, out_dir):
                     text_embeds=text_embeds,
                     cond_images=cond_images,
                     unet_number=i,
+                    max_batch_size=cfg.max_batch_size,
                 )
                 trainer.update(unet_number=i)
 
@@ -93,10 +94,10 @@ def train(cfg, trainer: ImagenTrainer, train_dataloader, train_writer, out_dir):
 
                 with train_writer.as_default():
                     # relies on return_all_unet_outputs=True
-                    for unet_idx in range(len(samples)):
+                    for unet_idx in range(trainer.num_unets):
                         out_path = f"{out_dir}/sample-{epoch}-unet-{unet_idx}.png"
                         save_image(samples[unet_idx], str(out_path), nrow=10)
-                        name = f"samples/unet_{unet_idx}" if unet_idx > 0 else "samples"
+                        name = f"samples/unet_{unet_idx}"
                         tf.summary.image(
                             name,
                             samples[unet_idx]
