@@ -73,12 +73,12 @@ def train(cfg, trainer: ImagenTrainer, train_dataloader, train_writer, out_dir):
 
             if cfg.do_sample:
                 eval_text_embeds = (
-                    eval_batch["text_embed"].to(cfg.device)
+                    eval_batch["text_embed"]
                     if "text_embed" in eval_batch
                     else None
                 )
                 eval_cond_images = (
-                    eval_batch["cond_image"].to(cfg.device)
+                    eval_batch["cond_image"]
                     if "cond_image" in eval_batch
                     else None
                 )
