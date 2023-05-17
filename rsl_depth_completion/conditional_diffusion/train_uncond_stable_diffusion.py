@@ -8,11 +8,7 @@ import tensorflow as tf
 import torch
 import torch.nn.functional as F
 from accelerate import Accelerator
-from diffusers import (
-    DDPMScheduler,
-    StableDiffusionImg2ImgPipeline,
-    UNet2DConditionModel,
-)
+from diffusers import DDPMPipeline, DDPMScheduler, UNet2DModel
 from diffusers.optimization import get_cosine_schedule_with_warmup
 from huggingface_hub import HfFolder, Repository, whoami
 from PIL import Image
@@ -115,27 +111,26 @@ class TrainingConfig:
 config = TrainingConfig()
 
 
-model = UNet2DConditionModel(
+model = UNet2DModel(
     sample_size=64,  # the target image resolution
     in_channels=1,  # the number of input channels, 3 for RGB images
     out_channels=1,  # the number of output channels
-    layers_per_block=1,  # how many ResNet layers to use per UNet block
+    layers_per_block=2,  # how many ResNet layers to use per UNet block
     block_out_channels=(
-        128,
         128,
         256,
         512,
+        512,
     ),  # the number of output channels for each UNet block
-    cross_attention_dim=512,
     down_block_types=(
         "DownBlock2D",  # a regular ResNet downsampling block
         "DownBlock2D",
-        "CrossAttnDownBlock2D",  # a ResNet downsampling block with spatial self-attention
+        "AttnDownBlock2D",  # a ResNet downsampling block with spatial self-attention
         "DownBlock2D",
     ),
     up_block_types=(
         "UpBlock2D",  # a regular ResNet upsampling block
-        "CrossAttnUpBlock2D",  # a ResNet upsampling block with spatial self-attention
+        "AttnUpBlock2D",  # a ResNet upsampling block with spatial self-attention
         "UpBlock2D",
         "UpBlock2D",
     ),
@@ -148,14 +143,8 @@ print(
 )
 
 sample_image = ds[0]["image"].unsqueeze(0)
-sample_text_embeds = ds[0]["text_embed"].unsqueeze(0)
 print("Input shape:", sample_image.shape)
-print(
-    "Output shape:",
-    model(
-        sample_image, timestep=0, encoder_hidden_states=sample_text_embeds
-    ).sample.shape,
-)
+print("Output shape:", model(sample_image, timestep=0).sample.shape)
 
 noise_scheduler = DDPMScheduler(num_train_timesteps=config.num_train_timesteps)
 noise = torch.randn(sample_image.shape)
@@ -187,15 +176,14 @@ def make_grid(images, rows, cols):
     return grid
 
 
-def evaluate(config, epoch, pipeline, output_type="pil", encoder_hidden_states=None):
+def evaluate(config, epoch, pipeline, output_type="pil"):
     # Sample some images from random noise (this is the backward diffusion process).
     # The default pipeline output type is `List[PIL.Image]`
     images = pipeline(
-        # batch_size=config.eval_batch_size,
+        batch_size=config.eval_batch_size,
         generator=torch.manual_seed(config.seed),
         num_inference_steps=config.num_inference_timesteps,
         output_type=output_type,
-        prompt_embeds=encoder_hidden_states,
     ).images
 
     # Make a grid out of the images
@@ -208,13 +196,6 @@ def evaluate(config, epoch, pipeline, output_type="pil", encoder_hidden_states=N
     return images
 
 
-model_id_or_path = "runwayml/stable-diffusion-v1-5"
-pipeline = StableDiffusionImg2ImgPipeline.from_pretrained(
-    model_id_or_path, unet=model, torch_dtype=torch.float16
-)
-pipeline.to(cfg.device)
-
-
 def train_loop(
     train_writer,
     config: TrainingConfig,
@@ -223,7 +204,6 @@ def train_loop(
     optimizer,
     train_dataloader,
     lr_scheduler,
-    train_logdir,
 ):
     global_step = 0
 
@@ -243,7 +223,7 @@ def train_loop(
         running_loss = {"loss": 0, "diff_to_orig_img": 0}
 
         for batch_idx, batch in enumerate(train_dataloader):
-            clean_images = batch["image"].to(cfg.device)
+            clean_images = batch["image"]
             if "text_embed" in batch:
                 text_embeds = batch["text_embed"].to(clean_images.device)
             else:
@@ -269,12 +249,7 @@ def train_loop(
             noisy_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
 
             # Predict the noise residual
-            noise_pred = model(
-                noisy_images,
-                timesteps,
-                encoder_hidden_states=text_embeds,
-                return_dict=False,
-            )[0]
+            noise_pred = model(noisy_images, timesteps, return_dict=False)[0]
             loss = F.mse_loss(noise_pred, noise)
             loss.backward()
 
@@ -305,6 +280,11 @@ def train_loop(
             progress_bar.set_postfix(**logs)
             global_step += 1
 
+        pipeline = DDPMPipeline(
+            unet=model,
+            scheduler=noise_scheduler,
+        )
+
         with train_writer.as_default():
             tf.summary.scalar("epoch/loss", running_loss["loss"], step=epoch)
 
@@ -325,14 +305,7 @@ def train_loop(
                     else None
                 )
 
-                # import ipdb; ipdb.set_trace()
-                samples = evaluate(
-                    config,
-                    epoch,
-                    pipeline,
-                    output_type="numpy",
-                    encoder_hidden_states=eval_text_embeds,
-                )
+                samples = evaluate(config, epoch, pipeline, output_type="numpy")
 
                 with train_writer.as_default():
                     # relies on return_all_unet_outputs=True
@@ -352,6 +325,9 @@ def train_loop(
                 epoch + 1
             ) % config.save_model_epochs == 0 or epoch == config.num_epochs - 1:
                 pipeline.save_pretrained(config.output_dir)
+
+
+# notebook_launcher(train_loop, args, num_processes=1)
 
 
 input_name = "interp_sdm"
