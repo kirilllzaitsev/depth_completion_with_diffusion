@@ -293,7 +293,7 @@ class ImagenTrainer(nn.Module):
 
     def __init__(
         self,
-        imagen=None,
+        imagen: Imagen = None,
         imagen_checkpoint_path=None,
         use_ema=True,
         lr=1e-4,

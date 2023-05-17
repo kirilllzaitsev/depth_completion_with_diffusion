@@ -43,14 +43,14 @@ def main():
 
     best_params = {
         "kitti": {
-            "use_text_embed": False,
+            "use_text_embed": True,
             "use_cond_image": True,
             "use_rgb_as_cond_image": False,
         },
         "mnist": {
             "use_text_embed": True,
-            "use_cond_image": False,
-            "use_rgb_as_cond_image": True,
+            "use_cond_image": True,
+            "use_rgb_as_cond_image": False,
         },
     }
 

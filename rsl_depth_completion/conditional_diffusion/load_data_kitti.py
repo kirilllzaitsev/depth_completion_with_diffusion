@@ -18,6 +18,7 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
         **kwargs,
     ):
         self.kitti_kwargs = self.load_base_ds(cfg)
+        self.sdm_interpolation_mode = cfg.sdm_interpolation_mode
         CustomKittiDCDataset.__init__(self, *args, **kwargs, **self.kitti_kwargs)
         BaseDMDataset.__init__(self, *args, **kwargs, **self.kitti_kwargs)
 
@@ -65,7 +66,7 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
         sparse_dm /= self.max_depth
 
         interpolated_sparse_dm = torch.from_numpy(
-            # data_utils.infill_sparse_depth(sparse_dm.numpy())
+            data_utils.infill_sparse_depth(sparse_dm.numpy())[0] if self.sdm_interpolation_mode == "infill" else
             data_utils.interpolate_sparse_depth(
                 sparse_dm.squeeze().numpy(), do_multiscale=True
             )
