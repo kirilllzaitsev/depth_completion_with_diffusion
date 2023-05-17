@@ -3119,7 +3119,7 @@ class Imagen(nn.Module):
         cond_images = maybe(cast_uint8_images_to_float)(cond_images)
 
         assert (
-            images.dtype == torch.float
+            images.dtype in (torch.float64, torch.float32, torch.float16)
         ), f"images tensor needs to be floats but {images.dtype} dtype found instead"
 
         unet_index = unet_number - 1
