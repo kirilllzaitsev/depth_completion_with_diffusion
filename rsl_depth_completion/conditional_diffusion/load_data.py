@@ -2,8 +2,11 @@ from functools import partial
 
 import torch
 import torchvision as tv
-from rsl_depth_completion.conditional_diffusion.load_data_mnist import MNISTDMDataset, mnist_transforms
 from rsl_depth_completion.conditional_diffusion.load_data_kitti import KITTIDMDataset
+from rsl_depth_completion.conditional_diffusion.load_data_mnist import (
+    MNISTDMDataset,
+    mnist_transforms,
+)
 
 # from load_data_kitti import KITTIDMDataset
 
@@ -38,7 +41,10 @@ mnist_ds_internal_transform = partial(
     ),
 )
 
+from functools import lru_cache
 
+
+@lru_cache
 def load_data(ds_name="mnist", do_overfit=False, cfg=None, **ds_kwargs):
     if ds_name == "mnist":
         sub_ds = MNISTDMDataset(
@@ -47,20 +53,23 @@ def load_data(ds_name="mnist", do_overfit=False, cfg=None, **ds_kwargs):
         )
     elif ds_name == "kitti":
         sub_ds = KITTIDMDataset(
+            cfg=cfg,
             **ds_kwargs,
         )
     else:
         raise ValueError(f"Unknown dataset: {ds_name}")
 
-    input_img_size = (64, 64)
-    post_transform = tv.transforms.Compose(
-        [
-            # tv.transforms.RandomHorizontalFlip(),
-            tv.transforms.Resize(input_img_size, antialias=True),
-            tv.transforms.ToTensor(),
-            tv.transforms.Lambda(lambda t: (t * 2) - 1),
-        ]
-    )
+    post_transforms = [
+        # tv.transforms.RandomHorizontalFlip(),
+        tv.transforms.ToTensor(),
+        tv.transforms.Lambda(lambda t: (t * 2) - 1),
+    ]
+    if ds_name == "mnist":
+        post_transforms = (
+            [tv.transforms.Resize(cfg.input_img_size, antialias=True)]
+        ) + post_transforms
+
+    post_transform = tv.transforms.Compose(post_transforms)
     ds = DMDataset(sub_ds, transform=post_transform)
 
     subset_range = range(0, cfg.batch_size) if do_overfit else range(0, 400)
