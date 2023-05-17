@@ -1,10 +1,13 @@
-from rsl_depth_completion.conditional_diffusion.custom_imagen_pytorch import Imagen, Unet
+from rsl_depth_completion.conditional_diffusion.custom_imagen_pytorch import (
+    Imagen,
+    Unet,
+)
 from rsl_depth_completion.conditional_diffusion.utils import log_params_to_exp
 
 
 def init_model(experiment, ds_kwargs, cfg):
     unet_base_params = dict(
-        dim=64,
+        dim=cfg.dim,
         dim_mults=[1, 1, 2, 2, 4, 4],
         channels=1,
         channels_out=None,
@@ -22,7 +25,9 @@ def init_model(experiment, ds_kwargs, cfg):
 
     unet_base = Unet(**unet_base_params)
     unets = [unet_base]
-    image_sizes = [64]
+    input_img_size = cfg.input_img_size
+    assert input_img_size[0] == input_img_size[1], "Only square images supported"
+    image_sizes = [input_img_size[0]]
 
     if cfg.use_super_res:
         unet_super_res = Unet(
