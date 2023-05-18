@@ -1,3 +1,5 @@
+import os
+
 import cv2
 import matplotlib.pyplot as plt
 import tensorflow as tf
@@ -7,7 +9,14 @@ from torchvision.utils import save_image
 from tqdm import tqdm
 
 
-def train(cfg, trainer: ImagenTrainer, train_dataloader, train_writer, out_dir):
+def train(
+    cfg,
+    trainer: ImagenTrainer,
+    train_dataloader,
+    train_writer,
+    out_dir,
+    trainer_kwargs=None,
+):
     progress_bar = tqdm(total=cfg.num_epochs, disable=False)
     batch_size = train_dataloader.batch_size
 
@@ -39,15 +48,23 @@ def train(cfg, trainer: ImagenTrainer, train_dataloader, train_writer, out_dir):
                 batch["sdm"] > 0, torch.ones_like(batch["sdm"]), batch["sdm"]
             ).bool()
             for i in range(1, (trainer.num_unets) + 1):
+                ckpt_path = f"./checkpoint_{i}.pt"
+                if trainer_kwargs is not None:
+                    trainer = ImagenTrainer(**trainer_kwargs)
+                if os.path.exists(ckpt_path):
+                    trainer.load(ckpt_path)
                 loss = trainer(
                     images=images,
                     text_embeds=text_embeds,
                     cond_images=cond_images,
                     unet_number=i,
                     max_batch_size=cfg.max_batch_size,
-                    validity_map_depth=validity_map_depth if i == (trainer.num_unets) else None,
+                    validity_map_depth=validity_map_depth
+                    if i == (trainer.num_unets)
+                    else None,
                 )
                 trainer.update(unet_number=i)
+                trainer.save(ckpt_path)
 
                 running_loss["loss"] += loss
 

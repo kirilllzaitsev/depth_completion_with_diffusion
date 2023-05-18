@@ -1,8 +1,11 @@
+import matplotlib.pyplot as plt
+
 import copy
 import math
 from collections import namedtuple
 from contextlib import contextmanager, nullcontext
 from functools import partial, wraps
+import os
 from pathlib import Path
 from random import random
 
@@ -2941,6 +2944,7 @@ class Imagen(nn.Module):
         min_snr_gamma=None,
         random_crop_size=None,
         loss_mask=None,
+        validity_map_depth=None,
         **kwargs,
     ):
         is_video = x_start.ndim == 5
@@ -3047,13 +3051,16 @@ class Imagen(nn.Module):
 
         if pred_objective == "noise":
             target = noise
+            x_denoised = x_noisy - pred
         elif pred_objective == "x_start":
             target = x_start
+            x_denoised = pred
         elif pred_objective == "v":
             # derivation detailed in Appendix D of Progressive Distillation paper
             # https://arxiv.org/abs/2202.00512
             # this makes distillation viable as well as solve an issue with color shifting in upresoluting unets, noted in imagen-video
             target = alpha * noise - sigma * x_start
+            x_denoised = alpha * pred - sigma * x_start
         else:
             raise ValueError(f"unknown objective {pred_objective}")
 
@@ -3063,6 +3070,14 @@ class Imagen(nn.Module):
         if exists(loss_mask):
             losses = losses * loss_mask
         losses = reduce(losses, "b ... -> b", "mean")
+
+        if isinstance(validity_map_depth, torch.Tensor):
+            if not os.path.exists('x_denoised.png'):
+                plt.imshow(x_denoised[0, 0].detach().cpu().numpy())
+                plt.savefig('x_denoised.png')
+            losses += F.l1_loss(
+                x_denoised[validity_map_depth], input_x[validity_map_depth]
+            )
 
         # min snr loss reweighting
 
@@ -3097,6 +3112,7 @@ class Imagen(nn.Module):
         unet_number=None,
         cond_images=None,
         loss_mask=None,
+        validity_map_depth=None,
         **kwargs,
     ):
         if self.is_video and images.ndim == 4:
@@ -3118,8 +3134,10 @@ class Imagen(nn.Module):
         images = cast_uint8_images_to_float(images)
         cond_images = maybe(cast_uint8_images_to_float)(cond_images)
 
-        assert (
-            images.dtype in (torch.float64, torch.float32, torch.float16)
+        assert images.dtype in (
+            torch.float64,
+            torch.float32,
+            torch.float16,
         ), f"images tensor needs to be floats but {images.dtype} dtype found instead"
 
         unet_index = unet_number - 1
@@ -3255,5 +3273,6 @@ class Imagen(nn.Module):
             min_snr_gamma=min_snr_gamma,
             random_crop_size=random_crop_size,
             loss_mask=loss_mask,
+            validity_map_depth=validity_map_depth,
             **kwargs,
         )

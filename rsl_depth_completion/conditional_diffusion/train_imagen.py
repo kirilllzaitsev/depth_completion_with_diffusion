@@ -125,16 +125,17 @@ def main():
     train_logdir.mkdir(parents=True, exist_ok=True)
     train_writer = tf.summary.create_file_writer(str(train_logdir))
 
-    trainer = ImagenTrainer(
-        model,
+    trainer_kwargs = dict(
+        imagen=model,
         use_lion=False,
         lr=cfg.lr,
         max_grad_norm=1.0,
         fp16=cfg.fp16,
         use_ema=False,
         accelerate_log_with="tensorboard",
-        accelerate_logging_dir="logs",
+        accelerate_project_dir="logs",
     )
+    trainer = ImagenTrainer(**trainer_kwargs)
     trainer.accelerator.init_trackers("train_example")
 
     try:
@@ -144,6 +145,7 @@ def main():
             train_dataloader,
             out_dir=train_logdir,
             train_writer=train_writer,
+            trainer_kwargs=trainer_kwargs
         )
     except Exception as e:
         shutil.rmtree(train_logdir)
