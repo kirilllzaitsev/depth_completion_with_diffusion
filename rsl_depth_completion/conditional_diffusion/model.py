@@ -12,12 +12,12 @@ def init_model(experiment, ds_kwargs, cfg):
         channels=1,
         channels_out=None,
         text_embed_dim=512,
-        num_resnet_blocks=2,
+        num_resnet_blocks=cfg.num_resnet_blocks,
         layer_attns=[False, False, False, False, False, True],
         layer_cross_attns=[False, False, False, False, False, True],
         attn_heads=4,
         lowres_cond=True,
-        memory_efficient=False,
+        memory_efficient=cfg.memory_efficient,
         attend_at_middle=False,
         cond_dim=None,
         cond_images_channels=cond_image_channels(ds_kwargs),
@@ -31,24 +31,24 @@ def init_model(experiment, ds_kwargs, cfg):
 
     if cfg.use_super_res:
         unet_super_res = Unet(
-            dim=64,
+            dim=cfg.dim,
             dim_mults=[1, 1, 2, 2, 4, 4],
             channels=1,
             channels_out=None,
             text_embed_dim=512,
-            num_resnet_blocks=2,
+            num_resnet_blocks=cfg.num_resnet_blocks,
             layer_attns=[False, False, False, False, False, True],
             layer_cross_attns=[False, False, False, False, False, True],
             attn_heads=4,
             lowres_cond=True,
-            memory_efficient=False,
+            memory_efficient=cfg.memory_efficient,
             attend_at_middle=False,
             cond_dim=None,
             cond_images_channels=cond_image_channels(ds_kwargs),
         )
 
         unets.append(unet_super_res)
-        image_sizes.append(128)
+        image_sizes.append(cfg.super_res_img_size[0])
 
     imagen_params = dict(
         text_embed_dim=512,

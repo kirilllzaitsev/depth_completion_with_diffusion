@@ -15,7 +15,7 @@ def train(
     train_dataloader,
     train_writer,
     out_dir,
-    trainer_kwargs=None,
+    trainer_kwargs,
 ):
     progress_bar = tqdm(total=cfg.num_epochs, disable=False)
     batch_size = train_dataloader.batch_size
@@ -25,6 +25,7 @@ def train(
         log_batch(eval_batch, epoch=1, batch_size=batch_size, prefix="eval")
 
     global_step = 0
+    is_multi_unet_training = len(trainer.num_unets) > 1
 
     for epoch in range(cfg.num_epochs):
         progress_bar.set_description(f"Epoch {epoch}")
@@ -49,10 +50,10 @@ def train(
             ).bool()
             for i in range(1, (trainer.num_unets) + 1):
                 ckpt_path = f"./checkpoint_{i}.pt"
-                if trainer_kwargs is not None:
+                if is_multi_unet_training:
                     trainer = ImagenTrainer(**trainer_kwargs)
-                if os.path.exists(ckpt_path):
-                    trainer.load(ckpt_path)
+                    if os.path.exists(ckpt_path):
+                        trainer.load(ckpt_path)
                 loss = trainer(
                     images=images,
                     text_embeds=text_embeds,
@@ -64,7 +65,8 @@ def train(
                     else None,
                 )
                 trainer.update(unet_number=i)
-                trainer.save(ckpt_path)
+                if is_multi_unet_training:
+                    trainer.save(ckpt_path)
 
                 running_loss["loss"] += loss
 
