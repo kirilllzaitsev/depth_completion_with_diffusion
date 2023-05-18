@@ -34,13 +34,18 @@ def train(cfg, trainer: ImagenTrainer, train_dataloader, train_writer, out_dir):
                 cond_images = batch["cond_image"]
             else:
                 cond_images = None
-            for i in range(1, len(trainer.imagen.unets) + 1):
+
+            validity_map_depth = torch.where(
+                batch["sdm"] > 0, torch.ones_like(batch["sdm"]), batch["sdm"]
+            ).bool()
+            for i in range(1, (trainer.num_unets) + 1):
                 loss = trainer(
                     images=images,
                     text_embeds=text_embeds,
                     cond_images=cond_images,
                     unet_number=i,
                     max_batch_size=cfg.max_batch_size,
+                    validity_map_depth=validity_map_depth if i == (trainer.num_unets) else None,
                 )
                 trainer.update(unet_number=i)
 
@@ -73,14 +78,10 @@ def train(cfg, trainer: ImagenTrainer, train_dataloader, train_writer, out_dir):
 
             if cfg.do_sample:
                 eval_text_embeds = (
-                    eval_batch["text_embed"]
-                    if "text_embed" in eval_batch
-                    else None
+                    eval_batch["text_embed"] if "text_embed" in eval_batch else None
                 )
                 eval_cond_images = (
-                    eval_batch["cond_image"]
-                    if "cond_image" in eval_batch
-                    else None
+                    eval_batch["cond_image"] if "cond_image" in eval_batch else None
                 )
 
                 samples = trainer.sample(
