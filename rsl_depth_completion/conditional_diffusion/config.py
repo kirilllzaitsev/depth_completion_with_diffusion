@@ -153,7 +153,7 @@ else:
     cfg.base_kitti_dataset_dir = "/media/master/wext/cv_data/kitti-full"
 
 if cfg.use_super_res:
-    cfg.other_tags.append("128x128")
+    cfg.other_tags.append(f"super_res_{cfg.super_res_img_size}")
 
 
 if __name__ == "__main__":
