@@ -54,6 +54,11 @@ class cfg:
     num_gpus = torch.cuda.device_count()
 
     def __init__(self, path=None):
+        env_specific_config_file = (
+            "configs/cluster.yaml" if self.is_cluster else "configs/local.yaml"
+        )
+        if os.path.exists(env_specific_config_file):
+            self.load_from_file(env_specific_config_file)
         if path is not None:
             self.load_from_file(path)
 
