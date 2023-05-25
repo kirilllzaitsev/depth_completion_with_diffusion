@@ -1,15 +1,14 @@
-import matplotlib.pyplot as plt
-
 import copy
 import math
+import os
 from collections import namedtuple
 from contextlib import contextmanager, nullcontext
 from functools import partial, wraps
-import os
 from pathlib import Path
 from random import random
 
 import kornia.augmentation as K
+import matplotlib.pyplot as plt
 import torch
 import torch.nn.functional as F
 import torchvision.transforms as T
@@ -3276,3 +3275,66 @@ class Imagen(nn.Module):
             validity_map_depth=validity_map_depth,
             **kwargs,
         )
+
+
+if __name__ == "__main__":
+    import json
+
+    params = json.load(
+        open(
+            "/media/master/wext/msc_studies/second_semester/research_project/project/rsl_depth_completion/rsl_depth_completion/conditional_diffusion/full_params.json"
+        )
+    )
+    # device = torch.device("cuda:0")
+    device = torch.device("cpu")
+    unets = [
+        Unet(**params["unet_base"]).to(device),
+        Unet(**params["unet_super_resolution"]).to(device),
+    ]
+
+    import numpy as np
+    import requests
+    import torch
+    from PIL import Image
+    from transformers import CLIPModel, CLIPProcessor
+
+    model_ref = "openai/clip-vit-base-patch32"
+    model = CLIPModel.from_pretrained(model_ref)
+    processor = CLIPProcessor.from_pretrained(model_ref)
+    url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+    image = Image.open(requests.get(url, stream=True).raw)
+    pixel_values = processor(
+        images=torch.stack(
+            [torch.from_numpy(np.array(image)), torch.from_numpy(np.array(image))]
+        ),
+        return_tensors="pt",
+    ).pixel_values
+    embedding = model.get_image_features(pixel_values=pixel_values)
+    embedding = embedding.unsqueeze(1).to(device)
+    encoding = embedding
+    mask = torch.ones(2, 1).bool().to(device)
+
+    # Create Imagen from UNets with specified imagen parameters
+    imagen = Imagen(unets=unets, **params["imagen_parameters"]).to(device)
+    # images = torch.randn(2, 3, 128, 128).to(device)
+    images = torch.randn(2, 1, 352, 1216).to(device)
+    # encoding = torch.randn(2, 14, 512).to(device)
+    # for unet_idx in range(len(unets)):
+    #     loss = imagen(
+    #         images,
+    #         text_embeds=encoding,
+    #         text_masks=mask,
+    #         unet_number=unet_idx + 1,
+    #     )
+    sample_args = {"cond_scale": 1.0, "timesteps": 10}
+    # texts = x["cond_image"]
+    samples = imagen.sample(
+        texts=images,
+        text_embeds=encoding,
+        text_masks=mask,
+        return_pil_images=True,
+        return_last=False,
+        **sample_args,
+    )
+    print(samples[0].size)
+    print("done")

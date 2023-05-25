@@ -90,7 +90,6 @@ class cfg:
     input_channels = 1
     timesteps = 200
     cond_scale = 8.0
-    # input_img_size = (64, 64)
     input_img_size = (64, 64)
     memory_efficient = False
     num_resnet_blocks = 2
