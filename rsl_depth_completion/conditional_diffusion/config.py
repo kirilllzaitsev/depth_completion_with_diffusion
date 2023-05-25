@@ -90,11 +90,14 @@ class cfg:
     input_channels = 1
     timesteps = 200
     cond_scale = 8.0
-    use_super_res = True
-    super_res_img_size = (256, 256)
+    # input_img_size = (64, 64)
     input_img_size = (64, 64)
     memory_efficient = False
-    num_resnet_blocks = 1
+    num_resnet_blocks = 2
+
+    use_validity_map_depth = True
+    use_super_res = True
+    super_res_img_size = (256, 256)
 
     fp16 = True
     max_batch_size = num_gpus

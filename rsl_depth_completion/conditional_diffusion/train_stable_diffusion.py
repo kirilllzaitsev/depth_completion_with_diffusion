@@ -11,7 +11,8 @@ from accelerate import Accelerator
 from diffusers import (
     DDPMScheduler,
     StableDiffusionImg2ImgPipeline,
-    UNet2DConditionModel, AutoencoderKL
+    UNet2DConditionModel,
+    AutoencoderKL,
 )
 from diffusers.optimization import get_cosine_schedule_with_warmup
 from huggingface_hub import HfFolder, Repository, whoami
@@ -121,11 +122,12 @@ model = UNet2DConditionModel(
     out_channels=1,  # the number of output channels
     layers_per_block=1,  # how many ResNet layers to use per UNet block
     block_out_channels=(
+        64,
         128,
         256,
-        512,
     ),  # the number of output channels for each UNet block
-    cross_attention_dim=512,
+    cross_attention_dim=256,
+    encoder_hid_dim=512,
     down_block_types=(
         "DownBlock2D",
         "CrossAttnDownBlock2D",  # a ResNet downsampling block with spatial self-attention
@@ -136,6 +138,7 @@ model = UNet2DConditionModel(
         "CrossAttnUpBlock2D",  # a ResNet upsampling block with spatial self-attention
         "UpBlock2D",
     ),
+    attention_head_dim=4,
 )
 
 num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -184,7 +187,9 @@ def make_grid(images, rows, cols):
     return grid
 
 
-def evaluate(config, epoch, pipeline, output_type="pil", encoder_hidden_states=None, image=None):
+def evaluate(
+    config, epoch, pipeline, output_type="pil", encoder_hidden_states=None, image=None
+):
     # Sample some images from random noise (this is the backward diffusion process).
     # The default pipeline output type is `List[PIL.Image]`
     images = pipeline(
@@ -194,7 +199,7 @@ def evaluate(config, epoch, pipeline, output_type="pil", encoder_hidden_states=N
         num_inference_steps=config.num_inference_timesteps,
         output_type=output_type,
         prompt_embeds=encoder_hidden_states,
-        negative_prompt_embeds=torch.zeros_like(encoder_hidden_states), 
+        negative_prompt_embeds=torch.zeros_like(encoder_hidden_states),
     ).images
 
     # Make a grid out of the images
@@ -210,7 +215,9 @@ def evaluate(config, epoch, pipeline, output_type="pil", encoder_hidden_states=N
 model_id_or_path = "runwayml/stable-diffusion-v1-5"
 vae = AutoencoderKL(in_channels=3, out_channels=1, latent_channels=1)
 pipeline = StableDiffusionImg2ImgPipeline.from_pretrained(
-    model_id_or_path, unet=model, vae=vae, 
+    model_id_or_path,
+    unet=model,
+    vae=vae,
     # torch_dtype=torch.float16
 )
 pipeline.to(cfg.device)
@@ -333,7 +340,7 @@ def train_loop(
                     pipeline,
                     output_type="numpy",
                     encoder_hidden_states=eval_text_embeds,
-                    image=eval_cond_images
+                    image=eval_cond_images,
                 )
 
                 with train_writer.as_default():
@@ -411,6 +418,7 @@ if hasattr(cfg, "other_tags"):
     experiment.add_tags(cfg.other_tags)
 experiment.add_tag(cfg.ds_name)
 experiment.add_tag("stable-diffusion")
+experiment.add_tag("cond_image_rgb")
 experiment.add_tag("overfit" if cfg.do_overfit else "full_data")
 # experiment.add_tag("debug" if cfg.do_debug else "train")
 

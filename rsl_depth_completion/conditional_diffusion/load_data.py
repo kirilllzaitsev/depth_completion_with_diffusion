@@ -49,6 +49,7 @@ def load_data(ds_name="mnist", do_overfit=False, cfg=None, **ds_kwargs):
     if ds_name == "mnist":
         sub_ds = MNISTDMDataset(
             img_transform=mnist_ds_internal_transform,
+            cfg=cfg,
             **ds_kwargs,
         )
     elif ds_name == "kitti":

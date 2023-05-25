@@ -3072,9 +3072,9 @@ class Imagen(nn.Module):
         losses = reduce(losses, "b ... -> b", "mean")
 
         if isinstance(validity_map_depth, torch.Tensor):
-            if not os.path.exists('x_denoised.png'):
+            if not os.path.exists("x_denoised.png"):
                 plt.imshow(x_denoised[0, 0].detach().cpu().numpy())
-                plt.savefig('x_denoised.png')
+                plt.savefig("x_denoised.png")
             losses += F.l1_loss(
                 x_denoised[validity_map_depth], input_x[validity_map_depth]
             )

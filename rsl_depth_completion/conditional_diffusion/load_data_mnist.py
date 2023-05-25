@@ -1,5 +1,6 @@
 import torch
 from datasets import load_dataset
+from rsl_depth_completion.conditional_diffusion.img_utils import center_crop
 from rsl_depth_completion.conditional_diffusion.load_data_base import BaseDMDataset
 from rsl_depth_completion.conditional_diffusion.utils import load_extractors
 
@@ -20,6 +21,7 @@ class MNISTDMDataset(BaseDMDataset):
     def __init__(
         self,
         img_transform,
+        cfg,
         *args,
         **kwargs,
     ):
@@ -32,10 +34,11 @@ class MNISTDMDataset(BaseDMDataset):
         )
         self.rgb_image = torch.load("./rgb_image.pt")
         self.sparse_dm = torch.load("./sparse_dm.pt") / self.max_depth
+        self.input_img_size = cfg.input_img_size
 
         if self.do_crop:
-            self.rgb_image = self.rgb_image[:, 50 : 50 + 256, 400 : 400 + 256]
-            self.sparse_dm = self.sparse_dm[:, 50 : 50 + 256, 400 : 400 + 256]
+            self.rgb_image = center_crop(self.rgb_image, crop_size=self.input_img_size)
+            self.sparse_dm = center_crop(self.sparse_dm, crop_size=self.input_img_size)
 
     def __getitem__(self, idx):
         mnist_img = self.train_dataset[idx]

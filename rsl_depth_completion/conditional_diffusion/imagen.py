@@ -584,7 +584,7 @@ class Imagen(nn.Module):
         if not return_pil_images:
             return {"base": outputs_base, "super": outputs_super}
 
-        pil_images = list(map(T.ToPILImage(), img.flatten(0,1)))
+        pil_images = list(map(T.ToPILImage(), img.flatten(0, 1)))
 
         return {"base": outputs_base, "super": pil_images}
 

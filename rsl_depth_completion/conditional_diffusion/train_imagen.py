@@ -145,7 +145,7 @@ def main():
             train_dataloader,
             out_dir=train_logdir,
             train_writer=train_writer,
-            trainer_kwargs=trainer_kwargs
+            trainer_kwargs=trainer_kwargs,
         )
     except Exception as e:
         shutil.rmtree(train_logdir)

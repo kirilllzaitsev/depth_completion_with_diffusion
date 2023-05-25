@@ -25,7 +25,7 @@ def train(
         log_batch(eval_batch, epoch=1, batch_size=batch_size, prefix="eval")
 
     global_step = 0
-    is_multi_unet_training = len(trainer.num_unets) > 1
+    is_multi_unet_training = (trainer.num_unets) > 1
 
     for epoch in range(cfg.num_epochs):
         progress_bar.set_description(f"Epoch {epoch}")
@@ -61,7 +61,7 @@ def train(
                     unet_number=i,
                     max_batch_size=cfg.max_batch_size,
                     validity_map_depth=validity_map_depth
-                    if i == (trainer.num_unets)
+                    if i == (trainer.num_unets) and cfg.use_validity_map_depth
                     else None,
                 )
                 trainer.update(unet_number=i)

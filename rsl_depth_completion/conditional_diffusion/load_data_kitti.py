@@ -6,6 +6,7 @@ import torch
 # import utils as data_utils
 import yaml
 from rsl_depth_completion.conditional_diffusion import utils as data_utils
+from rsl_depth_completion.conditional_diffusion.img_utils import center_crop
 from rsl_depth_completion.conditional_diffusion.load_data_base import BaseDMDataset
 from rsl_depth_completion.data.kitti.kitti_dataset import CustomKittiDCDataset
 
@@ -19,6 +20,7 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
     ):
         self.kitti_kwargs = self.load_base_ds(cfg)
         self.sdm_interpolation_mode = cfg.sdm_interpolation_mode
+        self.input_img_size = cfg.input_img_size
         CustomKittiDCDataset.__init__(self, *args, **kwargs, **self.kitti_kwargs)
         BaseDMDataset.__init__(self, *args, **kwargs, **self.kitti_kwargs)
 
@@ -60,14 +62,15 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
     def __getitem__(self, idx):
         items = super().__getitem__(idx)
         if self.do_crop:
-            items["d"] = items["d"][:, 50 : 50 + 256, 400 : 400 + 256]
-            items["img"] = items["img"][:, 50 : 50 + 256, 400 : 400 + 256]
+            items["d"] = center_crop(items["d"], crop_size=self.input_img_size)
+            items["img"] = center_crop(items["img"], crop_size=self.input_img_size)
         sparse_dm = items["d"]
         sparse_dm /= self.max_depth
 
         interpolated_sparse_dm = torch.from_numpy(
-            data_utils.infill_sparse_depth(sparse_dm.numpy())[0] if self.sdm_interpolation_mode == "infill" else
-            data_utils.interpolate_sparse_depth(
+            data_utils.infill_sparse_depth(sparse_dm.numpy())[0]
+            if self.sdm_interpolation_mode == "infill"
+            else data_utils.interpolate_sparse_depth(
                 sparse_dm.squeeze().numpy(), do_multiscale=True
             )
         ).unsqueeze(2)
