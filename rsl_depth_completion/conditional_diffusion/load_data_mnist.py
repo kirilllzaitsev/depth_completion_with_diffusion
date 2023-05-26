@@ -10,9 +10,9 @@ extractor_model, extractor_processor = load_extractors()
 
 def mnist_transforms(examples, transform=None):
     examples["pixel_values"] = [
-        transform(image.convert("L")) for image in examples["image"]
+        transform(image.convert("L")) for image in examples["input_img"]
     ]
-    del examples["image"]
+    del examples["input_img"]
 
     return examples
 
@@ -44,7 +44,7 @@ class MNISTDMDataset(BaseDMDataset):
         mnist_img = self.train_dataset[idx]
 
         sample = {
-            "image": mnist_img["pixel_values"],
+            "input_img": mnist_img["pixel_values"],
         }
 
         sample = self.extend_sample(self.sparse_dm, self.rgb_image, sample)

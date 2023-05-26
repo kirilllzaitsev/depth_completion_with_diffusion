@@ -21,7 +21,7 @@ class DMDataset(torch.utils.data.Dataset):
 
         # cond_image /= 255.0
 
-        sample["image"] = self.transform(sample["image"])
+        sample["input_img"] = self.transform(sample["input_img"])
 
         return sample
 
@@ -45,7 +45,7 @@ from functools import lru_cache
 
 
 @lru_cache
-def load_data(ds_name="mnist", do_overfit=False, cfg=None, **ds_kwargs):
+def load_data(cfg, ds_name="mnist", do_overfit=False, **ds_kwargs):
     if ds_name == "mnist":
         sub_ds = MNISTDMDataset(
             img_transform=mnist_ds_internal_transform,
@@ -63,7 +63,7 @@ def load_data(ds_name="mnist", do_overfit=False, cfg=None, **ds_kwargs):
     post_transforms = [
         # tv.transforms.RandomHorizontalFlip(),
         tv.transforms.ToTensor(),
-        tv.transforms.Lambda(lambda t: (t * 2) - 1),
+        # tv.transforms.Lambda(lambda t: (t * 2) - 1),
     ]
     if ds_name == "mnist":
         post_transforms = (
@@ -104,6 +104,8 @@ def load_data(ds_name="mnist", do_overfit=False, cfg=None, **ds_kwargs):
 
 
 if __name__ == "__main__":
+    from rsl_depth_completion.conditional_diffusion.config import cfg as cfg_cls
+    cfg = cfg_cls()
     ds_kwargs = dict(
         use_rgb_as_text_embed=False,
         use_rgb_as_cond_image=True,
@@ -112,6 +114,6 @@ if __name__ == "__main__":
         do_crop=True,
         include_sdm_and_rgb_in_sample=True,
     )
-    ds, train_loader, val_loader = load_data(ds_name="kitti", **ds_kwargs)
+    ds, train_loader, val_loader = load_data(cfg, ds_name="kitti", **ds_kwargs)
     x = ds[0]
     print(x)

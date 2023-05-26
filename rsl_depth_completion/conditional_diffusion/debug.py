@@ -146,7 +146,7 @@ for ds_name in ["mnist"]:
 
         experiment.add_tags([k for k, v in ds_kwargs.items() if v])
         if hasattr(cfg, "other_tags"):
-            experiment.add_tags(cfg.other_tags)
+            experiment.add_tags(cfg.exp_targets)
         experiment.add_tag(ds_name)
         experiment.add_tag("overfit" if cfg.do_overfit else "full_data")
         # experiment.add_tag("debug" if cfg.do_debug else "train")

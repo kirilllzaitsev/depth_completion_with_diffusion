@@ -20,7 +20,7 @@ def train(
     progress_bar = tqdm(total=cfg.num_epochs, disable=False)
     batch_size = train_dataloader.batch_size
 
-    eval_batch = next(iter(train_dataloader))
+    eval_batch = torch.load("eval_batch.pt")[:batch_size]
     with train_writer.as_default():
         log_batch(eval_batch, epoch=1, batch_size=batch_size, prefix="eval")
 
@@ -35,7 +35,7 @@ def train(
         else:
             data_gen = tqdm(enumerate(train_dataloader), total=len(train_dataloader))
         for batch_idx, batch in data_gen:
-            images = batch["image"]
+            images = batch["input_img"]
             if "text_embed" in batch:
                 text_embeds = batch["text_embed"]
             else:
@@ -49,7 +49,7 @@ def train(
                 batch["sdm"] > 0, torch.ones_like(batch["sdm"]), batch["sdm"]
             ).bool()
             for i in range(1, (trainer.num_unets) + 1):
-                ckpt_path = f"./checkpoint_{i}.pt"
+                ckpt_path = f"{out_dir}/checkpoint_{i}.pt"
                 if is_multi_unet_training:
                     trainer = ImagenTrainer(**trainer_kwargs)
                     if os.path.exists(ckpt_path):
@@ -78,9 +78,11 @@ def train(
                 )
                 if cfg.do_overfit and cfg.do_save_inputs_every_batch:
                     log_batch(batch, epoch, len(images), prefix="train")
+            
+            global_step += 1
+
             if cfg.do_overfit and batch_idx == 0:
                 break
-            global_step += 1
 
         with train_writer.as_default():
             tf.summary.scalar("epoch/loss", running_loss["loss"], step=epoch)
@@ -108,13 +110,13 @@ def train(
                     cond_images=eval_cond_images,
                     cond_scale=cfg.cond_scale,
                     batch_size=batch_size,
-                    stop_at_unet_number=None,
+                    stop_at_unet_number=cfg.stop_at_unet_number,
                     return_all_unet_outputs=True,
                 )
 
                 with train_writer.as_default():
                     # relies on return_all_unet_outputs=True
-                    for unet_idx in range(trainer.num_unets):
+                    for unet_idx in range(len(samples)):
                         out_path = f"{out_dir}/sample-{epoch}-unet-{unet_idx}.png"
                         save_image(samples[unet_idx], str(out_path), nrow=10)
                         name = f"samples/unet_{unet_idx}"
@@ -133,17 +135,17 @@ def train(
 
 
 def log_batch(batch, epoch, batch_size, prefix=None):
-    train_img_name = "train_img"
+    img_name = "input_img"
     sdm_name = "sdm"
     rgb_name = "rgb"
     if prefix is not None:
-        train_img_name = f"{prefix}/{train_img_name}"
+        img_name = f"{prefix}/{img_name}"
         sdm_name = f"{prefix}/{sdm_name}"
         rgb_name = f"{prefix}/{rgb_name}"
 
     tf.summary.image(
-        train_img_name,
-        batch["image"].cpu().numpy().transpose(0, 2, 3, 1),
+        img_name,
+        batch["input_img"].cpu().numpy().transpose(0, 2, 3, 1),
         max_outputs=batch_size,
         step=epoch,
     )

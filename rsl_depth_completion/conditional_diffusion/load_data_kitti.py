@@ -78,7 +78,7 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
         rgb_image = items["img"]
 
         sample = {
-            "image": interpolated_sparse_dm.detach().numpy(),
+            "input_img": interpolated_sparse_dm.detach().numpy(),
             "sdm": (sparse_dm).detach(),
         }
         sample = self.extend_sample(sparse_dm, rgb_image, sample)

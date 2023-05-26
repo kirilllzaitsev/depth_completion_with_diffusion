@@ -54,29 +54,29 @@ class cfg:
     num_gpus = torch.cuda.device_count()
 
     def __init__(self, path=None):
-        env_specific_config_file = (
-            "configs/cluster.yaml" if self.is_cluster else "configs/local.yaml"
-        )
-        if os.path.exists(env_specific_config_file):
-            self.load_from_file(env_specific_config_file)
         if path is not None:
             self.load_from_file(path)
 
         if self.is_cluster:
-            self.batch_size = 2 if self.ds_name == "mnist" else 2
+            if self.do_overfit:
+                self.batch_size = 1
+            elif self.ds_name == "mnist":
+                self.batch_size = 2
+            else:
+                self.batch_size = 2
             self.num_workers = min(os.cpu_count(), max(self.batch_size, self.num_gpus))
         else:
-            self.batch_size = 1
+            self.batch_size = 2
             self.num_workers = 0
-        self.other_tags.append(f"bs_{self.batch_size}")
+        # self.exp_targets.append(f"bs_{self.batch_size}")
 
     do_sample = True
     do_overfit = None
     do_train_val_split = False
     do_lr_schedule = True
     do_early_stopping = True
-    # other_tags = ["sdm_interpolation_mode"]
-    other_tags = []
+    exp_targets = ["sz_weight"]
+    # other_tags = []
 
     disabled = not is_cluster
     # disabled = True
@@ -90,13 +90,14 @@ class cfg:
     input_channels = 1
     timesteps = 200
     cond_scale = 8.0
-    input_img_size = (64, 64)
+    input_img_size = (256, 256)
     memory_efficient = False
     num_resnet_blocks = 2
 
-    use_validity_map_depth = True
-    use_super_res = True
+    use_validity_map_depth = False
+    use_super_res = False
     super_res_img_size = (256, 256)
+    stop_at_unet_number = 2
 
     fp16 = True
     max_batch_size = num_gpus
@@ -117,26 +118,11 @@ class cfg:
     path_to_project_dir = None
     base_kitti_dataset_dir = None
 
+    sz_loss_weight = 0.4
+
     def params(self):
         return {
-            "do_sample": self.do_sample,
-            "do_overfit": self.do_overfit,
-            "do_train_val_split": self.do_train_val_split,
-            "do_lr_schedule": self.do_lr_schedule,
-            "do_early_stopping": self.do_early_stopping,
-            "dim": self.dim,
-            "input_channels": self.input_channels,
-            "timesteps": self.timesteps,
-            "cond_scale": self.cond_scale,
-            "num_epochs": self.num_epochs,
-            "train_one_epoch": self.train_one_epoch,
-            "use_super_res": self.use_super_res,
-            "lr": self.lr,
-            "fp16": self.fp16,
-            "seed": self.seed,
-            "sdm_interpolation_mode": self.sdm_interpolation_mode,
-            "memory_efficient": self.memory_efficient,
-            "num_resnet_blocks": self.num_resnet_blocks,
+            **self.__dict__,
             **{
                 f"lr_schedule_cfg/{k}": v
                 for k, v in self.lr_schedule_cfg.params().items()
@@ -160,7 +146,7 @@ else:
     cfg.base_kitti_dataset_dir = "/media/master/wext/cv_data/kitti-full"
 
 if cfg.use_super_res:
-    cfg.other_tags.append(f"super_res_{cfg.super_res_img_size}")
+    cfg.exp_targets.append(f"super_res_{cfg.super_res_img_size}")
 
 
 if __name__ == "__main__":

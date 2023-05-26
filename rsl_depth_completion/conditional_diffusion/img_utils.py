@@ -9,7 +9,7 @@ import torch
 from PIL import Image
 
 
-def center_crop(img, crop_size, channels_last=True):
+def center_crop(img, crop_size, channels_last=False):
     if channels_last:
         h, w = img.shape[:2]
     else:

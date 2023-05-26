@@ -16,7 +16,7 @@ def init_model(experiment, ds_kwargs, cfg):
         layer_attns=[False, False, False, False, False, True],
         layer_cross_attns=[False, False, False, False, False, True],
         attn_heads=4,
-        lowres_cond=False,
+        lowres_cond=True,
         memory_efficient=cfg.memory_efficient,
         attend_at_middle=False,
         cond_dim=None,
@@ -25,9 +25,9 @@ def init_model(experiment, ds_kwargs, cfg):
 
     unet_base = Unet(**unet_base_params)
     unets = [unet_base]
-    input_img_size = cfg.input_img_size
-    assert input_img_size[0] == input_img_size[1], "Only square images supported"
-    image_sizes = [input_img_size[0]]
+    input_imgsize = cfg.input_img_size
+    assert input_imgsize[0] == input_imgsize[1], "Only square images supported"
+    image_sizes = [input_imgsize[0]]
 
     if cfg.use_super_res:
         unet_super_res = Unet(
@@ -40,7 +40,7 @@ def init_model(experiment, ds_kwargs, cfg):
             layer_attns=[False, False, False, False, False, True],
             layer_cross_attns=[False, False, False, False, False, True],
             attn_heads=4,
-            lowres_cond=False,
+            lowres_cond=True,
             memory_efficient=cfg.memory_efficient,
             attend_at_middle=False,
             cond_dim=None,
@@ -60,12 +60,12 @@ def init_model(experiment, ds_kwargs, cfg):
         only_train_unet_number=None,
         image_sizes=image_sizes,
         text_encoder_name="google/t5-v1_1-base",
-        auto_normalize_img=False,
+        auto_normalize_img=True,
         cond_drop_prob=0.1,
         condition_on_text=ds_kwargs["use_text_embed"],
         pred_objectives="noise",
     )
-    imagen = Imagen(unets=unets, **imagen_params)
+    imagen = Imagen(cfg=cfg, unets=unets, **imagen_params)
 
     experiment.log_parameters({f"imagen_{k}": v for k, v in imagen_params.items()})
     experiment.log_parameters(

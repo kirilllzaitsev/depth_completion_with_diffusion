@@ -9,10 +9,10 @@ import torch
 import torch.nn.functional as F
 from accelerate import Accelerator
 from diffusers import (
+    AutoencoderKL,
     DDPMScheduler,
     StableDiffusionImg2ImgPipeline,
     UNet2DConditionModel,
-    AutoencoderKL,
 )
 from diffusers.optimization import get_cosine_schedule_with_warmup
 from huggingface_hub import HfFolder, Repository, whoami
@@ -147,7 +147,7 @@ print(
     num_params,
 )
 
-sample_image = ds[0]["image"].unsqueeze(0)
+sample_image = ds[0]["input_img"].unsqueeze(0)
 sample_text_embeds = ds[0]["text_embed"].unsqueeze(0)
 print("Input shape:", sample_image.shape)
 print(
@@ -251,7 +251,7 @@ def train_loop(
         running_loss = {"loss": 0, "diff_to_orig_img": 0}
 
         for batch_idx, batch in enumerate(train_dataloader):
-            clean_images = batch["image"].to(cfg.device)
+            clean_images = batch["input_img"].to(cfg.device)
             if "text_embed" in batch:
                 text_embeds = batch["text_embed"].to(clean_images.device)
             else:
@@ -415,7 +415,7 @@ with train_writer.as_default():
 
 experiment.add_tags([k for k, v in ds_kwargs.items() if v])
 if hasattr(cfg, "other_tags"):
-    experiment.add_tags(cfg.other_tags)
+    experiment.add_tags(cfg.exp_targets)
 experiment.add_tag(cfg.ds_name)
 experiment.add_tag("stable-diffusion")
 experiment.add_tag("cond_image_rgb")

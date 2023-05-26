@@ -142,7 +142,7 @@ print(
     num_params,
 )
 
-sample_image = ds[0]["image"].unsqueeze(0)
+sample_image = ds[0]["input_img"].unsqueeze(0)
 print("Input shape:", sample_image.shape)
 print("Output shape:", model(sample_image, timestep=0).sample.shape)
 
@@ -223,7 +223,7 @@ def train_loop(
         running_loss = {"loss": 0, "diff_to_orig_img": 0}
 
         for batch_idx, batch in enumerate(train_dataloader):
-            clean_images = batch["image"]
+            clean_images = batch["input_img"]
             if "text_embed" in batch:
                 text_embeds = batch["text_embed"].to(clean_images.device)
             else:
@@ -382,7 +382,7 @@ with train_writer.as_default():
 
 experiment.add_tags([k for k, v in ds_kwargs.items() if v])
 if hasattr(cfg, "other_tags"):
-    experiment.add_tags(cfg.other_tags)
+    experiment.add_tags(cfg.exp_targets)
 experiment.add_tag(cfg.ds_name)
 experiment.add_tag("stable-diffusion")
 experiment.add_tag("overfit" if cfg.do_overfit else "full_data")

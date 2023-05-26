@@ -117,11 +117,9 @@ def main():
     else:
         text_cond = "none"
 
-    cond = f"{img_cond=}_{text_cond=}"
-    exp_dir = f"{input_name=}/{cond=}/{cfg.lr=}_{cfg.timesteps=}"
-
     exp_dir = f"{len(os.listdir(logdir)) + 1:03d}" if os.path.isdir(logdir) else "001"
-    train_logdir = logdir / exp_dir / cond
+    exp_dir += f"_{cfg.exp_targets=}"
+    train_logdir = logdir / exp_dir
     train_logdir.mkdir(parents=True, exist_ok=True)
     train_writer = tf.summary.create_file_writer(str(train_logdir))
 
@@ -160,7 +158,7 @@ def main():
 
     experiment.add_tags([k for k, v in ds_kwargs.items() if v])
     if hasattr(cfg, "other_tags"):
-        experiment.add_tags(cfg.other_tags)
+        experiment.add_tags(cfg.exp_targets)
     experiment.add_tag("imagen")
     experiment.add_tag(cfg.ds_name)
     experiment.add_tag("overfit" if cfg.do_overfit else "full_data")
