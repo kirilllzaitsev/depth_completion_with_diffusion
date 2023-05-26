@@ -90,13 +90,15 @@ class cfg:
     input_channels = 1
     timesteps = 200
     cond_scale = 8.0
-    input_img_size = (256, 256)
+    input_res = 256
+    input_img_size = (input_res, input_res)
     memory_efficient = False
     num_resnet_blocks = 2
+    auto_normalize_img = True
 
     use_validity_map_depth = False
     use_super_res = False
-    super_res_img_size = (256, 256)
+    super_res_img_size = (input_res, input_res)
     stop_at_unet_number = 2
 
     fp16 = True

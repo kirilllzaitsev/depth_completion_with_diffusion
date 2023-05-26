@@ -60,7 +60,7 @@ def init_model(experiment, ds_kwargs, cfg):
         only_train_unet_number=None,
         image_sizes=image_sizes,
         text_encoder_name="google/t5-v1_1-base",
-        auto_normalize_img=True,
+        auto_normalize_img=cfg.auto_normalize_img,
         cond_drop_prob=0.1,
         condition_on_text=ds_kwargs["use_text_embed"],
         pred_objectives="noise",

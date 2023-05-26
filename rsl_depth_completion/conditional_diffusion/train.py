@@ -20,7 +20,7 @@ def train(
     progress_bar = tqdm(total=cfg.num_epochs, disable=False)
     batch_size = train_dataloader.batch_size
 
-    eval_batch = torch.load("eval_batch.pt")[:batch_size]
+    eval_batch = {k:v[:batch_size] for k,v in torch.load("eval_batch.pt")[cfg.input_res].items()}
     with train_writer.as_default():
         log_batch(eval_batch, epoch=1, batch_size=batch_size, prefix="eval")
 
