@@ -66,9 +66,8 @@ class cfg:
                 self.batch_size = 2
             self.num_workers = min(os.cpu_count(), max(self.batch_size, self.num_gpus))
         else:
-            self.batch_size = 2
+            self.batch_size = 1
             self.num_workers = 0
-        # self.exp_targets.append(f"bs_{self.batch_size}")
 
     do_sample = True
     do_overfit = None
@@ -90,15 +89,21 @@ class cfg:
     input_channels = 1
     timesteps = 200
     cond_scale = 8.0
-    input_res = 256
+    input_res = 64
     input_img_size = (input_res, input_res)
     memory_efficient = False
     num_resnet_blocks = 2
     auto_normalize_img = True
 
     use_validity_map_depth = False
-    use_super_res = False
+    sz_loss_weight = 0.4
+
+    use_super_res = True
     super_res_img_size = (input_res, input_res)
+
+    unets_output_res = [64]
+    if use_super_res:
+        unets_output_res.append(super_res_img_size[0])
     stop_at_unet_number = 2
 
     fp16 = True
@@ -120,7 +125,6 @@ class cfg:
     path_to_project_dir = None
     base_kitti_dataset_dir = None
 
-    sz_loss_weight = 0.4
 
     def params(self):
         return {

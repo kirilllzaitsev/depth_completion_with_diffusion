@@ -27,7 +27,7 @@ def init_model(experiment, ds_kwargs, cfg):
     unets = [unet_base]
     input_imgsize = cfg.input_img_size
     assert input_imgsize[0] == input_imgsize[1], "Only square images supported"
-    image_sizes = [input_imgsize[0]]
+    image_sizes = cfg.unets_output_res
 
     if cfg.use_super_res:
         unet_super_res = Unet(
@@ -48,7 +48,6 @@ def init_model(experiment, ds_kwargs, cfg):
         )
 
         unets.append(unet_super_res)
-        image_sizes.append(cfg.super_res_img_size[0])
 
     imagen_params = dict(
         text_embed_dim=512,
