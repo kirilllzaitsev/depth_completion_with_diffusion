@@ -30,60 +30,83 @@ class BaseDMDataset(torch.utils.data.Dataset):
     def prep_eval_batch(self, eval_batch):
         if self.use_cond_image:
             if self.use_rgb_as_cond_image:
-                eval_batch["cond_image"] = (eval_batch["rgb"] / 255).detach()
+                cond_image = (
+                    eval_batch["rgb"]
+                    if torch.max(eval_batch["rgb"]) <= 1
+                    else eval_batch["rgb"] / 255
+                )
             else:
-                eval_batch["cond_image"] = (
-                    eval_batch["sdm"] / self.max_depth
-                ).detach()
-            eval_batch["cond_image"] *= 2
-            eval_batch["cond_image"] -= 1
+                cond_image = (
+                    eval_batch["sdm"]
+                    if torch.max(eval_batch["sdm"]) <= 1
+                    else eval_batch["sdm"] / self.max_depth
+                )
+            eval_batch["cond_image"] = cond_image
         if self.use_text_embed:
+            embeds = []
             if self.use_rgb_as_text_embed:
-                rgb_embeds = []
                 for rgb in eval_batch["rgb"]:
-                    rgb_pixel_values = self.extract_img_features(rgb)
+                    prepare_pixels = rgb if torch.max(rgb) > 1 else rgb * 255
+                    rgb_pixel_values = self.prepare_pixels(prepare_pixels)
                     rgb_embed = self.extractor_model.get_image_features(
                         pixel_values=rgb_pixel_values
                     )
-                    rgb_embeds.append(rgb_embed)
+                    embeds.append(rgb_embed)
 
                 # rgb_embeds[-1] = torch.load("random_coco_embed.pt")
                 # print("Loaded random coco embed at last index of eval batch")
 
-                eval_batch["text_embed"] = torch.stack(rgb_embeds, dim=0).detach()
+                eval_batch["text_embed"] = torch.stack(embeds, dim=0).detach()
             else:
-                sdm_embeds = []
                 for sdm in eval_batch["sdm"]:
-                    sdm_pixel_values = self.extract_img_features(
+                    prepare_pixels = sdm if torch.max(sdm) > 1 else sdm * self.max_depth
+                    sdm_pixel_values = self.prepare_pixels(
                         cv2.cvtColor(sdm.squeeze().numpy(), cv2.COLOR_GRAY2RGB)
                     )
                     sdm_embed = self.extractor_model.get_image_features(
                         pixel_values=sdm_pixel_values
                     )
-                    sdm_embeds.append(sdm_embed)
-                eval_batch["text_embed"] = torch.stack(sdm_embeds, dim=0).detach()
+                    embeds.append(sdm_embed)
+            eval_batch["text_embed"] = torch.stack(embeds, dim=0).detach()
         return eval_batch
 
-    def extend_sample(self, sparse_dm, rgb_image, sample):
+    def extend_sample(self, sparse_dm, rgb_image):
         extension = {}
+        assert not (
+            self.use_rgb_as_cond_image and self.use_rgb_as_text_embed
+        ), "Can't use rgb as both cond image and text embed"
         if self.use_cond_image:
+            # normalizing because imagen divides by 255 internally if dtype == uint8
+            # which is wrong for the case of sparse depth
             if self.use_rgb_as_cond_image:
-                extension["cond_image"] = (rgb_image / 255).detach()
+                cond_image = rgb_image if torch.max(rgb_image) <= 1 else rgb_image / 255
             else:
-                extension["cond_image"] = (sparse_dm / self.max_depth).detach()
-            extension["cond_image"] *= 2
-            extension["cond_image"] -= 1
+                cond_image = (
+                    sparse_dm
+                    if torch.max(sparse_dm) <= 1
+                    else sparse_dm / self.max_depth
+                )
+            extension["cond_image"] = cond_image.detach()
 
         if self.use_text_embed:
+            # denormalizing because CLIP processor requires pixel values in [0, 255]
             if self.use_rgb_as_text_embed:
-                rgb_pixel_values = self.extract_img_features(rgb_image)
+                prepare_pixels = (
+                    rgb_image if torch.max(rgb_image) > 1 else rgb_image * 255
+                )
+                rgb_pixel_values = self.prepare_pixels(prepare_pixels)
                 rgb_embed = self.extractor_model.get_image_features(
                     pixel_values=rgb_pixel_values
                 )
 
                 extension["text_embed"] = rgb_embed.detach()
             else:
-                sdm_pixel_values = self.extract_img_features(
+                prepare_pixels = (
+                    sparse_dm
+                    if torch.max(sparse_dm) > 1
+                    else sparse_dm * self.max_depth
+                )
+                sdm_pixel_values = self.prepare_pixels(
                     cv2.cvtColor(sparse_dm.squeeze().numpy(), cv2.COLOR_GRAY2RGB)
                 )
                 sdm_embed = self.extractor_model.get_image_features(
@@ -92,11 +115,17 @@ class BaseDMDataset(torch.utils.data.Dataset):
                 extension["text_embed"] = sdm_embed.detach()
         if self.include_sdm_and_rgb_in_sample:
             extension["sdm"] = (sparse_dm).detach()
-            extension["rgb"] = (rgb_image / 255).detach()
-        return {**sample, **extension}
+            extension["rgb"] = (rgb_image).detach()
+        return {**extension}
 
-    def extract_img_features(self, cond_image):
+    def prepare_pixels(self, cond_image):
+        cond_image = self.fix_channel_not_last(cond_image)
         return self.extractor_processor(
             images=torch.from_numpy(np.array(cond_image)),
             return_tensors="pt",
         ).pixel_values
+
+    def fix_channel_not_last(self, x):
+        assert len(x.shape) == 3, "Expected 3D tensor"
+        if x.shape[0] < x.shape[-1]:
+            return np.transpose(x, (1, 2, 0))
