@@ -1,3 +1,5 @@
+import numpy as np
+
 import os
 
 import cv2
@@ -22,7 +24,13 @@ def train(
     batch_size = train_dataloader.batch_size
 
     with train_writer.as_default():
-        log_batch(eval_batch, epoch=1, batch_size=batch_size, prefix="eval")
+        log_batch(
+            eval_batch,
+            epoch=1,
+            batch_size=batch_size,
+            prefix="eval",
+            max_depth=cfg.max_depth,
+        )
 
     global_step = 0
     is_multi_unet_training = (trainer.num_unets) > 1
@@ -144,7 +152,7 @@ def train(
                 break
 
 
-def log_batch(batch, epoch, batch_size, prefix=None):
+def log_batch(batch, epoch, batch_size, prefix=None, max_depth=80.0):
     img_name = "input_img"
     sdm_name = "sdm"
     rgb_name = "rgb"
@@ -153,21 +161,37 @@ def log_batch(batch, epoch, batch_size, prefix=None):
         sdm_name = f"{prefix}/{sdm_name}"
         rgb_name = f"{prefix}/{rgb_name}"
 
+    input_img = batch["input_img"].cpu().numpy().transpose(0, 2, 3, 1)
+    input_img = rescale_img_to_zero_one_range(input_img)
     tf.summary.image(
         img_name,
-        batch["input_img"].cpu().numpy().transpose(0, 2, 3, 1),
+        input_img,
         max_outputs=batch_size,
         step=epoch,
     )
+    sdm = batch["sdm"].cpu().numpy().transpose(0, 2, 3, 1)
+    sdm = rescale_img_to_zero_one_range(sdm)
     tf.summary.image(
         sdm_name,
-        batch["sdm"].cpu().numpy().transpose(0, 2, 3, 1),
+        sdm,
         max_outputs=batch_size,
         step=epoch,
     )
+    rgb = batch["rgb"].cpu().numpy().transpose(0, 2, 3, 1)
+    rgb = rescale_img_to_zero_one_range(rgb)
     tf.summary.image(
         rgb_name,
-        batch["rgb"].cpu().numpy().transpose(0, 2, 3, 1),
+        rgb,
         max_outputs=batch_size,
         step=epoch,
     )
+
+
+def optional_normalize_img(x, scaler=255.0):
+    if np.max(x) > 1:
+        x = x / scaler
+    return x
+
+
+def rescale_img_to_zero_one_range(x):
+    return x / np.max(x)
