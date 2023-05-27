@@ -1,4 +1,5 @@
 import argparse
+import os
 
 import torch
 
@@ -21,8 +22,17 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
         self.kitti_kwargs = self.load_base_ds(cfg)
         self.sdm_interpolation_mode = cfg.sdm_interpolation_mode
         self.input_img_size = cfg.input_img_size
+
         CustomKittiDCDataset.__init__(self, *args, **kwargs, **self.kitti_kwargs)
-        BaseDMDataset.__init__(self, *args, **kwargs, **self.kitti_kwargs)
+        
+        eval_batch = None
+        if os.path.exists("eval_batch.pt"):
+            total_eval_batch = torch.load("eval_batch.pt")
+            if cfg.input_res in total_eval_batch:
+                eval_batch = {k:v[:cfg.batch_size] for k,v in torch.load("eval_batch.pt")[cfg.input_res].items()}
+            else:
+                print(f"eval_batch.pt does not contain {cfg.input_res}")
+        BaseDMDataset.__init__(self, *args, eval_batch=eval_batch, **kwargs, **self.kitti_kwargs)
 
     def load_base_ds(self, cfg):
         ds_config_str = open(
@@ -51,10 +61,10 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
             ds_config.val_ground_truth_path, path_to_data_dir=path_to_data_dir
         )
         kitti_kwargs = {
-            "image_paths": val_image_paths,
-            "sparse_depth_paths": val_sparse_depth_paths,
-            "intrinsics_paths": val_intrinsics_paths,
-            "ground_truth_paths": val_ground_truth_paths,
+            "image_paths": sorted(val_image_paths),
+            "sparse_depth_paths": sorted(val_sparse_depth_paths),
+            "intrinsics_paths": sorted(val_intrinsics_paths),
+            "ground_truth_paths": sorted(val_ground_truth_paths),
             "ds_config": ds_config,
         }
         return kitti_kwargs

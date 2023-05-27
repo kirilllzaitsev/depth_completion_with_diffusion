@@ -14,6 +14,7 @@ from rsl_depth_completion.conditional_diffusion.load_data_mnist import (
 class DMDataset(torch.utils.data.Dataset):
     def __init__(self, ds, transform, *args, **kwargs):
         self.ds = ds
+        self.eval_batch = ds.eval_batch
         self.transform = transform
 
     def __getitem__(self, index):

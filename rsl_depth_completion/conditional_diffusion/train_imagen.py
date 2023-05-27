@@ -144,6 +144,7 @@ def main():
             out_dir=train_logdir,
             train_writer=train_writer,
             trainer_kwargs=trainer_kwargs,
+            eval_batch=ds.eval_batch
         )
     except Exception as e:
         shutil.rmtree(train_logdir)

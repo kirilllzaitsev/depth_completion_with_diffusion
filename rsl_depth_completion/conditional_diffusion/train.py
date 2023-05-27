@@ -16,11 +16,11 @@ def train(
     train_writer,
     out_dir,
     trainer_kwargs,
+    eval_batch
 ):
     progress_bar = tqdm(total=cfg.num_epochs, disable=False)
     batch_size = train_dataloader.batch_size
 
-    eval_batch = {k:v[:batch_size] for k,v in torch.load("eval_batch.pt")[cfg.input_res].items()}
     with train_writer.as_default():
         log_batch(eval_batch, epoch=1, batch_size=batch_size, prefix="eval")
 
@@ -35,6 +35,8 @@ def train(
         else:
             data_gen = tqdm(enumerate(train_dataloader), total=len(train_dataloader))
         for batch_idx, batch in data_gen:
+            if cfg.do_overfit:
+                batch = eval_batch
             images = batch["input_img"]
             if "text_embed" in batch:
                 text_embeds = batch["text_embed"]
@@ -93,7 +95,9 @@ def train(
             progress_bar.set_postfix(**running_loss)
             if cfg.do_save_model:
                 if cfg.do_save_last_model:
-                    trainer.save(f"{out_dir}/model-last.pt")
+                    save_path = f"{out_dir}/model-last.pt"
+                    trainer.save(save_path)
+                    print(f"Saved model to {save_path}")
                 else:
                     trainer.save(f"{out_dir}/model-{epoch}.pt")
 
