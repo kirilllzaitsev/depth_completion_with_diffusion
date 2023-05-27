@@ -78,7 +78,14 @@ def main():
         disabled=cfg.disabled,
     )
 
-    for code_file in ["model.py", "load_data.py", "load_data_kitti.py", "train.py", "config.py", "custom_imagen_pytorch.py"]:
+    for code_file in [
+        "model.py",
+        "load_data.py",
+        "load_data_kitti.py",
+        "train.py",
+        "config.py",
+        "custom_imagen_pytorch.py",
+    ]:
         experiment.log_asset(code_file, copy_to_tmp=False)
 
     log_params_to_exp(experiment, ds_kwargs, "dataset")
@@ -132,7 +139,7 @@ def main():
             out_dir=train_logdir,
             train_writer=train_writer,
             trainer_kwargs=trainer_kwargs,
-            eval_batch=ds.eval_batch
+            eval_batch=ds.eval_batch,
         )
     except Exception as e:
         shutil.rmtree(train_logdir)
@@ -144,7 +151,6 @@ def main():
             dict2mdtable({**ds_kwargs, **cfg.params(), "num_params": num_params}),
             1,
         )
-
 
     experiment.end()
 

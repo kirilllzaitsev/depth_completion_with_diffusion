@@ -2082,7 +2082,7 @@ class Imagen(nn.Module):
         min_snr_gamma=5,
     ):
         super().__init__()
-        self.cfg=cfg
+        self.cfg = cfg
 
         # loss
 
@@ -3076,7 +3076,7 @@ class Imagen(nn.Module):
             if not os.path.exists("x_denoised.png"):
                 plt.imshow(x_denoised[0, 0].detach().cpu().numpy())
                 plt.savefig("x_denoised.png")
-            losses += self.cfg.sz_loss_weight*F.l1_loss(
+            losses += self.cfg.sz_loss_weight * F.l1_loss(
                 x_denoised[validity_map_depth], input_x[validity_map_depth]
             )
 

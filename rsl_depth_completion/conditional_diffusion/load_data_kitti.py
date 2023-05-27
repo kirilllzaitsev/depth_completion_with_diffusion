@@ -24,15 +24,20 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
         self.input_img_size = cfg.input_img_size
 
         CustomKittiDCDataset.__init__(self, *args, **kwargs, **self.kitti_kwargs)
-        
+
         eval_batch = None
         if os.path.exists("eval_batch.pt"):
             total_eval_batch = torch.load("eval_batch.pt")
             if cfg.input_res in total_eval_batch:
-                eval_batch = {k:v[:cfg.batch_size] for k,v in torch.load("eval_batch.pt")[cfg.input_res].items()}
+                eval_batch = {
+                    k: v[: cfg.batch_size]
+                    for k, v in torch.load("eval_batch.pt")[cfg.input_res].items()
+                }
             else:
                 print(f"eval_batch.pt does not contain {cfg.input_res}")
-        BaseDMDataset.__init__(self, *args, eval_batch=eval_batch, **kwargs, **self.kitti_kwargs)
+        BaseDMDataset.__init__(
+            self, *args, eval_batch=eval_batch, **kwargs, **self.kitti_kwargs
+        )
 
     def load_base_ds(self, cfg):
         ds_config_str = open(
@@ -89,8 +94,8 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
 
         sample = {
             "input_img": interpolated_sparse_dm.detach().numpy(),
-            "sdm": (sparse_dm).detach(),
         }
-        sample = self.extend_sample(sparse_dm, rgb_image, sample)
+        extension = self.extend_sample(sparse_dm, rgb_image)
+        sample.update(extension)
 
         return sample

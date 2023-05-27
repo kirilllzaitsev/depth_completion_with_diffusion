@@ -106,6 +106,7 @@ def load_data(cfg, ds_name="mnist", do_overfit=False, **ds_kwargs):
 
 if __name__ == "__main__":
     from rsl_depth_completion.conditional_diffusion.config import cfg as cfg_cls
+
     cfg = cfg_cls()
     ds_kwargs = dict(
         use_rgb_as_text_embed=False,

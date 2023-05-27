@@ -115,7 +115,6 @@ class cfg:
     path_to_project_dir = None
     base_kitti_dataset_dir = None
 
-
     def params(self):
         return {
             **self.__dict__,

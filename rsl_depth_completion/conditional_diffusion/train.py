@@ -16,7 +16,7 @@ def train(
     train_writer,
     out_dir,
     trainer_kwargs,
-    eval_batch
+    eval_batch,
 ):
     progress_bar = tqdm(total=cfg.num_epochs, disable=False)
     batch_size = train_dataloader.batch_size
@@ -80,14 +80,14 @@ def train(
                 )
                 if cfg.do_overfit and cfg.do_save_inputs_every_batch:
                     log_batch(batch, epoch, len(images), prefix="train")
-            
+
             global_step += 1
 
             if cfg.do_overfit and batch_idx == 0:
                 break
 
         with train_writer.as_default():
-            tf.summary.scalar("epoch/loss", running_loss["loss"], step=epoch)
+            tf.summary.scalar("epoch/loss", running_loss["loss"], step=global_step)
 
         progress_bar.update(1)
 
@@ -119,7 +119,13 @@ def train(
                 )
 
                 with train_writer.as_default():
-                    # relies on return_all_unet_outputs=True
+                    if len(samples) > 1:
+                        tf.summary.scalar(
+                            "epoch/intersample_abs_diff",
+                            torch.sum(torch.abs(samples[0] - samples[1])),
+                            step=global_step,
+                        )
+
                     for unet_idx in range(len(samples)):
                         out_path = f"{out_dir}/sample-{epoch}-unet-{unet_idx}.png"
                         save_image(samples[unet_idx], str(out_path), nrow=10)

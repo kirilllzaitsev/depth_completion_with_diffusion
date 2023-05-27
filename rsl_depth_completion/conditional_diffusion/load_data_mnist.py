@@ -47,7 +47,8 @@ class MNISTDMDataset(BaseDMDataset):
             "input_img": mnist_img["pixel_values"],
         }
 
-        sample = self.extend_sample(self.sparse_dm, self.rgb_image, sample)
+        extension = self.extend_sample(self.sparse_dm, self.rgb_image)
+        sample.update(extension)
         return sample
 
     def __len__(self):
