@@ -78,13 +78,19 @@ def main():
         disabled=cfg.disabled,
     )
 
-    experiment.log_asset("model.py", copy_to_tmp=False)
-    experiment.log_asset("load_data.py", copy_to_tmp=False)
-    experiment.log_asset("train.py", copy_to_tmp=False)
-    experiment.log_asset("config.py", copy_to_tmp=False)
+    for code_file in ["model.py", "load_data.py", "load_data_kitti.py", "train.py", "config.py", "custom_imagen_pytorch.py"]:
+        experiment.log_asset(code_file, copy_to_tmp=False)
 
     log_params_to_exp(experiment, ds_kwargs, "dataset")
     log_params_to_exp(experiment, cfg.params(), "base_config")
+
+    experiment.add_tags([k for k, v in ds_kwargs.items() if v])
+    if hasattr(cfg, "other_tags"):
+        experiment.add_tags(cfg.exp_targets)
+    experiment.add_tags(["imagen", cfg.ds_name])
+    experiment.add_tag("overfit" if cfg.do_overfit else "full_data")
+    if cfg.num_epochs == 1:
+        experiment.add_tag("debug")
 
     print(
         "Number of train samples",
@@ -98,24 +104,6 @@ def main():
         "Number of parameters in model",
         num_params,
     )
-
-    input_name = "interp_sdm"
-
-    if ds_kwargs["use_cond_image"]:
-        if ds_kwargs["use_rgb_as_cond_image"]:
-            img_cond = "rgb"
-        else:
-            img_cond = "sdm"
-    else:
-        img_cond = "none"
-
-    if ds_kwargs["use_text_embed"]:
-        if ds_kwargs["use_rgb_as_text_embed"]:
-            text_cond = "rgb"
-        else:
-            text_cond = "sdm"
-    else:
-        text_cond = "none"
 
     exp_dir = f"{len(os.listdir(logdir)) + 1:03d}" if os.path.isdir(logdir) else "001"
     exp_dir += f"_{cfg.exp_targets=}"
@@ -157,14 +145,6 @@ def main():
             1,
         )
 
-    experiment.add_tags([k for k, v in ds_kwargs.items() if v])
-    if hasattr(cfg, "other_tags"):
-        experiment.add_tags(cfg.exp_targets)
-    experiment.add_tag("imagen")
-    experiment.add_tag(cfg.ds_name)
-    experiment.add_tag("overfit" if cfg.do_overfit else "full_data")
-    if cfg.num_epochs == 1:
-        experiment.add_tag("debug")
 
     experiment.end()
 
