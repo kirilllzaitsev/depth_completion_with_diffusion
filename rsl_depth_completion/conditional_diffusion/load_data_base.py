@@ -14,6 +14,7 @@ class BaseDMDataset(torch.utils.data.Dataset):
         do_crop=True,
         include_sdm_and_rgb_in_sample=True,
         eval_batch=None,
+        max_depth=80,
         *args,
         **kwargs,
     ):
@@ -22,7 +23,7 @@ class BaseDMDataset(torch.utils.data.Dataset):
         self.use_cond_image = use_cond_image
         self.use_text_embed = use_text_embed
         self.extractor_model, self.extractor_processor = load_extractors()
-        self.max_depth = 80
+        self.max_depth = max_depth
         self.do_crop = do_crop
         self.include_sdm_and_rgb_in_sample = include_sdm_and_rgb_in_sample
         self.eval_batch = self.prep_eval_batch(eval_batch) if eval_batch else None

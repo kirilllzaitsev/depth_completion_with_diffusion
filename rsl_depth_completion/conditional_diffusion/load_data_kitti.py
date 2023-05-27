@@ -26,17 +26,23 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
         CustomKittiDCDataset.__init__(self, *args, **kwargs, **self.kitti_kwargs)
 
         eval_batch = None
-        if os.path.exists("eval_batch.pt"):
-            total_eval_batch = torch.load("eval_batch.pt")
+        eval_batch_path = cfg.eval_batch_path
+        if os.path.exists(eval_batch_path):
+            total_eval_batch = torch.load(eval_batch_path)
             if cfg.input_res in total_eval_batch:
                 eval_batch = {
                     k: v[: cfg.batch_size]
-                    for k, v in torch.load("eval_batch.pt")[cfg.input_res].items()
+                    for k, v in torch.load(eval_batch_path)[cfg.input_res].items()
                 }
             else:
                 print(f"eval_batch.pt does not contain {cfg.input_res}")
         BaseDMDataset.__init__(
-            self, *args, eval_batch=eval_batch, **kwargs, **self.kitti_kwargs
+            self,
+            *args,
+            eval_batch=eval_batch,
+            max_depth=cfg.max_depth,
+            **kwargs,
+            **self.kitti_kwargs,
         )
 
     def load_base_ds(self, cfg):

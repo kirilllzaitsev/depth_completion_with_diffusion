@@ -64,8 +64,8 @@ class cfg:
     do_train_val_split = False
     do_lr_schedule = True
     do_early_stopping = True
-    exp_targets = ["sz_weight"]
-    # other_tags = []
+    other_tags = []
+    exp_targets = []
 
     disabled = not is_cluster
     # disabled = True
@@ -105,6 +105,14 @@ class cfg:
     sampling_freq = None
     do_save_inputs_every_batch = False
 
+    # eval_batch_path = "eval_batch_rand_rgb.pt"
+    # eval_batch_path = "eval_batch_rand_sdm.pt"
+    # eval_batch_path = "eval_batch.pt"
+    eval_batch_path = "eval_batch_rand_rgb_and_sdm.pt"
+
+    # max_depth = 80
+    max_depth = 255
+
     seed = 100
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -116,7 +124,18 @@ class cfg:
     base_kitti_dataset_dir = None
 
     def params(self):
+        attrs_to_exclude = [
+            "path_to_project_dir",
+            "base_kitti_dataset_dir",
+        ]
         return {
+            **{
+                k: v
+                for k, v in self.__class__.__dict__.items()
+                if not k.startswith("__")
+                and not callable(v)
+                and k not in attrs_to_exclude
+            },
             **self.__dict__,
             **{
                 f"lr_schedule_cfg/{k}": v
