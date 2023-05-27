@@ -2,10 +2,6 @@ import torch
 from datasets import load_dataset
 from rsl_depth_completion.conditional_diffusion.img_utils import center_crop
 from rsl_depth_completion.conditional_diffusion.load_data_base import BaseDMDataset
-from rsl_depth_completion.conditional_diffusion.utils import load_extractors
-
-dataset = load_dataset("fashion_mnist")
-extractor_model, extractor_processor = load_extractors()
 
 
 def mnist_transforms(examples, transform=None):
@@ -27,6 +23,7 @@ class MNISTDMDataset(BaseDMDataset):
     ):
         super().__init__(*args, **kwargs)
 
+        dataset = load_dataset("fashion_mnist")
         train_dataset = dataset["train"]
 
         self.train_dataset = train_dataset.with_transform(img_transform).remove_columns(
