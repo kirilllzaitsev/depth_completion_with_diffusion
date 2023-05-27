@@ -1,3 +1,4 @@
+import argparse
 import gc
 import itertools
 import os
@@ -24,6 +25,20 @@ torch.backends.cudnn.benchmark = True
 
 def main():
     cfg = cfg_cls(path=cfg_cls.default_file)
+
+    parser = argparse.ArgumentParser()
+    for attr_key, attr_value in cfg_cls.__dict__.items():
+        attr_type = type(attr_value)
+        if not attr_key.startswith("__") and not callable(attr_value):
+            obj_attr_value = getattr(cfg, attr_key) if attr_key in vars(cfg) else attr_value
+            if attr_type == bool:
+                parser.add_argument(f"--{attr_key}", action="store_true", default=obj_attr_value)
+            else:
+                parser.add_argument(f"--{attr_key}", type=attr_type, default=obj_attr_value)
+    args, _ = parser.parse_known_args()
+    for k, v in vars(args).items():
+        if v is not None:
+            setattr(cfg, k, v)
 
     set_seed(cfg.seed)
 
@@ -88,10 +103,15 @@ def main():
     ]:
         experiment.log_asset(code_file, copy_to_tmp=False)
 
-    log_params_to_exp(experiment, ds_kwargs, "dataset")
-    log_params_to_exp(experiment, cfg.params(), "base_config")
+    num_samples = len(train_dataloader) * train_dataloader.batch_size
+    unets, model = init_model(experiment, ds_kwargs, cfg)
+    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-    experiment.add_tags([k for k, v in ds_kwargs.items() if v])
+    log_params_to_exp(experiment, {**ds_kwargs, "num_samples": num_samples}, "dataset")
+    log_params_to_exp(
+        experiment, {**cfg.params(), "num_params": num_params}, "base_config"
+    )
+
     if hasattr(cfg, "other_tags"):
         experiment.add_tags(cfg.exp_targets)
     experiment.add_tags(["imagen", cfg.ds_name])
@@ -101,12 +121,9 @@ def main():
 
     print(
         "Number of train samples",
-        len(train_dataloader) * train_dataloader.batch_size,
+        num_samples,
     )
 
-    unets, model = init_model(experiment, ds_kwargs, cfg)
-
-    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(
         "Number of parameters in model",
         num_params,
@@ -117,6 +134,13 @@ def main():
     train_logdir = logdir / exp_dir
     train_logdir.mkdir(parents=True, exist_ok=True)
     train_writer = tf.summary.create_file_writer(str(train_logdir))
+
+    with train_writer.as_default():
+        tf.summary.text(
+            "hyperparams",
+            dict2mdtable({**ds_kwargs, **cfg.params(), "num_params": num_params}),
+            1,
+        )
 
     trainer_kwargs = dict(
         imagen=model,
@@ -145,15 +169,10 @@ def main():
         shutil.rmtree(train_logdir)
         raise e
 
-    with train_writer.as_default():
-        tf.summary.text(
-            "hyperparams",
-            dict2mdtable({**ds_kwargs, **cfg.params(), "num_params": num_params}),
-            1,
-        )
-
     experiment.end()
 
 
 if __name__ == "__main__":
+    #  = args.
+
     main()
