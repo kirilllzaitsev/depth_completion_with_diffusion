@@ -1,6 +1,5 @@
 from rsl_depth_completion.conditional_diffusion.config import cfg
 from rsl_depth_completion.conditional_diffusion.custom_imagen_pytorch import (
-    BaseUnet64,
     Imagen,
     Unet,
 )
@@ -10,23 +9,22 @@ from rsl_depth_completion.conditional_diffusion.utils import log_params_to_exp
 def init_model(experiment, ds_kwargs, cfg: cfg):
     unet_base_params = dict(
         dim=cfg.dim,
-        # dim_mults=[1, 1, 2, 2, 4, 4],
+        dim_mults=[1, 1, 2, 2, 4, 4],
         channels=1,
         channels_out=None,
         text_embed_dim=512,
         num_resnet_blocks=cfg.num_resnet_blocks,
-        # layer_attns=[False, False, False, False, False, True],
-        # layer_cross_attns=[False, False, False, False, False, True],
-        # attn_heads=4,
-        # lowres_cond=False,
-        # memory_efficient=cfg.memory_efficient,
-        # attend_at_middle=False,
+        layer_attns=[False, False, True, True, True, True],
+        layer_cross_attns=[False, False, True, True, True, True],
+        attn_heads=6,
+        lowres_cond=False,
+        memory_efficient=cfg.memory_efficient,
+        attend_at_middle=False,
         cond_dim=None,
         cond_images_channels=cond_image_channels(ds_kwargs),
     )
 
-    # unet_base = Unet(**unet_base_params)
-    unet_base = BaseUnet64(**unet_base_params)
+    unet_base = Unet(**unet_base_params)
     unets = [unet_base]
     input_imgsize = cfg.input_img_size
     assert input_imgsize[0] == input_imgsize[1], "Only square images supported"
