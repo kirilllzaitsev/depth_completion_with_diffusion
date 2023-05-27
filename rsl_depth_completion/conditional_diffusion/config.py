@@ -57,17 +57,7 @@ class cfg:
         if path is not None:
             self.load_from_file(path)
 
-        if self.is_cluster:
-            if self.do_overfit:
-                self.batch_size = 1
-            elif self.ds_name == "mnist":
-                self.batch_size = 2
-            else:
-                self.batch_size = 2
-            self.num_workers = min(os.cpu_count(), max(self.batch_size, self.num_gpus))
-        else:
-            self.batch_size = 1
-            self.num_workers = 0
+        self.num_workers = min(os.cpu_count(), max(self.batch_size, self.num_gpus))
 
     do_sample = True
     do_overfit = None
@@ -91,14 +81,14 @@ class cfg:
     cond_scale = 8.0
     input_res = 64
     input_img_size = (input_res, input_res)
-    memory_efficient = False
+    memory_efficient = False  # results in even higher memory usage
     num_resnet_blocks = 2
     auto_normalize_img = True
 
     use_validity_map_depth = False
     sz_loss_weight = 0.4
 
-    use_super_res = True
+    use_super_res = False
     super_res_img_size = (input_res, input_res)
 
     unets_output_res = [64]
