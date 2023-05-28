@@ -32,11 +32,10 @@ class BaseDMDataset(torch.utils.data.Dataset):
         self.input_img_sdm_interpolation_mode = input_img_sdm_interpolation_mode
         self.include_sdm_and_rgb_in_sample = include_sdm_and_rgb_in_sample
         self.eval_batch = self.prep_eval_batch(eval_batch) if eval_batch else None
-        # self.eval_batch = None
 
     def prep_eval_batch(self, eval_batch):
         eval_batch["input_img"] = self.prep_sparse_dm(
-            eval_batch["sdm"], self.input_img_sdm_interpolation_mode
+            eval_batch["sdm"], self.input_img_sdm_interpolation_mode, channel_dim=1
         )
 
         if self.use_cond_image:
@@ -55,7 +54,7 @@ class BaseDMDataset(torch.utils.data.Dataset):
                 cond_images = []
                 for sdm in sdms:
                     cond_images.append(
-                        self.prep_sparse_dm(sdm, self.cond_img_sdm_interpolation_mode)
+                        self.prep_sparse_dm(sdm, self.cond_img_sdm_interpolation_mode, channel_dim=0)
                     )
                 cond_image = torch.stack(cond_images, dim=0)
             eval_batch["cond_img"] = cond_image
@@ -147,7 +146,7 @@ class BaseDMDataset(torch.utils.data.Dataset):
         if x.shape[0] < x.shape[-1]:
             return np.transpose(x, (1, 2, 0))
 
-    def prep_sparse_dm(self, sparse_dms, interpolation_mode):
+    def prep_sparse_dm(self, sparse_dms, interpolation_mode, channel_dim=2):
         if interpolation_mode is None:
             return sparse_dms
         if len(sparse_dms.shape) == 4:
@@ -157,7 +156,7 @@ class BaseDMDataset(torch.utils.data.Dataset):
             cond_images = torch.stack(cond_images, dim=0)
         else:
             cond_images = self._prep_sparse_dm(sparse_dms, interpolation_mode)
-        return cond_images
+        return cond_images.unsqueeze(channel_dim)
 
     def _prep_sparse_dm(self, sdm, interpolation_mode):
         if interpolation_mode is None:
@@ -168,4 +167,4 @@ class BaseDMDataset(torch.utils.data.Dataset):
             else data_utils.interpolate_sparse_depth(
                 sdm.squeeze().numpy(), do_multiscale=True
             )
-        ).unsqueeze(0)
+        )
