@@ -240,7 +240,7 @@ def train_loop(
     eval_batch = next(iter(train_dataloader))
     batch_size = config.train_batch_size
     with train_writer.as_default():
-        log_batch(eval_batch, epoch=1, batch_size=batch_size, prefix="eval")
+        log_batch(eval_batch, step=1, batch_size=batch_size, prefix="eval")
 
     # Now you train the model
     for epoch in range(cfg.num_epochs):
@@ -256,8 +256,8 @@ def train_loop(
                 text_embeds = batch["text_embed"].to(clean_images.device)
             else:
                 text_embeds = None
-            if "cond_image" in batch:
-                cond_images = batch["cond_image"].to(clean_images.device)
+            if "cond_img" in batch:
+                cond_images = batch["cond_img"].to(clean_images.device)
             else:
                 cond_images = None
             # Sample noise to add to the images
@@ -328,8 +328,8 @@ def train_loop(
                     else None
                 )
                 eval_cond_images = (
-                    eval_batch["cond_image"].to(clean_images.device)
-                    if "cond_image" in eval_batch
+                    eval_batch["cond_img"].to(clean_images.device)
+                    if "cond_img" in eval_batch
                     else None
                 )
 
