@@ -52,8 +52,8 @@ def train(
                 text_embeds = batch["text_embed"]
             else:
                 text_embeds = None
-            if "cond_image" in batch:
-                cond_images = batch["cond_image"]
+            if "cond_img" in batch:
+                cond_images = batch["cond_img"]
             else:
                 cond_images = None
 
@@ -120,7 +120,7 @@ def train(
                     eval_batch["text_embed"] if "text_embed" in eval_batch else None
                 )
                 eval_cond_images = (
-                    eval_batch["cond_image"] if "cond_image" in eval_batch else None
+                    eval_batch["cond_img"] if "cond_img" in eval_batch else None
                 )
 
                 samples = trainer.sample(
@@ -162,6 +162,7 @@ def log_batch(
     batch_size,
     experiment: comet_ml.Experiment,
     prefix=None,
+    max_depth=80.0,
 ):
     for k, v in batch.items():
         v = v.cpu().numpy().transpose(0, 2, 3, 1)

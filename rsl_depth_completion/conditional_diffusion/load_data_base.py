@@ -58,7 +58,7 @@ class BaseDMDataset(torch.utils.data.Dataset):
                         self.prep_sparse_dm(sdm, self.cond_img_sdm_interpolation_mode)
                     )
                 cond_image = torch.stack(cond_images, dim=0)
-            eval_batch["cond_image"] = cond_image
+            eval_batch["cond_img"] = cond_image
         if self.use_text_embed:
             embeds = []
             if self.use_rgb_as_text_embed:
@@ -103,7 +103,7 @@ class BaseDMDataset(torch.utils.data.Dataset):
                     if torch.max(sparse_dm) <= 1
                     else sparse_dm / self.max_depth
                 )
-            extension["cond_image"] = cond_image.detach()
+            extension["cond_img"] = cond_image.detach()
 
         if self.use_text_embed:
             # denormalizing because CLIP processor requires pixel values in [0, 255]
