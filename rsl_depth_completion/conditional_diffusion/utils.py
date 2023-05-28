@@ -128,3 +128,13 @@ def dict2mdtable(d, key="Name", val="Value"):
     rows += ["|--|--|"]
     rows += [f"| {k} | {v} |" for k, v in d.items()]
     return "  \n".join(rows)
+
+
+def optional_normalize_img(x, scaler=255.0):
+    if np.max(x) > 1:
+        x = x / scaler
+    return x
+
+
+def rescale_img_to_zero_one_range(x):
+    return x / np.max(x)
