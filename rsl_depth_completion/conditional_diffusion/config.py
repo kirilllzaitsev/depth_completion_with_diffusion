@@ -73,10 +73,8 @@ class cfg:
     # disabled = not is_cluster
     # disabled = True
     disabled = False
-    input_img_sdm_interpolation_mode = "interpolate"
-    cond_img_sdm_interpolation_mode = "infill"
-    # input_img_sdm_interpolation_mode = "infill"
-    # cond_img_sdm_interpolation_mode = "interpolate"
+    input_img_sdm_interpolation_mode = "infill"
+    cond_img_sdm_interpolation_mode = "interpolate"
 
     lr_schedule_cfg = lr_schedule_cfg
     early_stop_cfg = early_stop_cfg
@@ -126,9 +124,6 @@ class cfg:
     tmpdir = os.getenv("TMPDIR")
     cluster_logdir = "/cluster/scratch/kzaitse/logs"
     path_to_project_dir = os.environ["path_to_project_dir"]
-
-    path_to_project_dir = None
-    base_kitti_dataset_dir = None
 
     def params(self):
         attrs_to_exclude = [
