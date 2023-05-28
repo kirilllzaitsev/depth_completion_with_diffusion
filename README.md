@@ -27,6 +27,14 @@ curl -sSL https://install.python-poetry.org | python -
 poetry install
 ```
 
+### Submodules
+
+```bash
+git submodule update --init --recursive
+cd submodules || exit 1
+for d in */ ; do (cd "$d" && pip install --no-deps -e .); done
+```
+
 ## Usage
 
 poetry run -m self_supervised_dc.main
