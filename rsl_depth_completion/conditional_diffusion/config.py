@@ -1,7 +1,10 @@
 import os
 
+import dotenv
 import torch
 import yaml
+
+dotenv.load_dotenv()
 
 
 class lr_schedule_cfg:
@@ -65,12 +68,15 @@ class cfg:
     do_lr_schedule = True
     do_early_stopping = True
     other_tags = []
-    exp_targets = []
+    exp_targets = ["interp_cond_img"]
 
-    disabled = not is_cluster
+    # disabled = not is_cluster
     # disabled = True
-    # sdm_interpolation_mode = "interpolate"
-    sdm_interpolation_mode = "infill"
+    disabled = False
+    input_img_sdm_interpolation_mode = "interpolate"
+    cond_img_sdm_interpolation_mode = "infill"
+    # input_img_sdm_interpolation_mode = "infill"
+    # cond_img_sdm_interpolation_mode = "interpolate"
 
     lr_schedule_cfg = lr_schedule_cfg
     early_stop_cfg = early_stop_cfg
@@ -81,7 +87,7 @@ class cfg:
     cond_scale = 8.0
     input_res = 64
     input_img_size = (input_res, input_res)
-    memory_efficient = False  # results in even higher memory usage
+    memory_efficient = False  # results in a one-time memory burst that causes OOM
     num_resnet_blocks = 2
     auto_normalize_img = True
 
@@ -107,11 +113,11 @@ class cfg:
 
     # eval_batch_path = "eval_batch_rand_rgb.pt"
     # eval_batch_path = "eval_batch_rand_sdm.pt"
-    # eval_batch_path = "eval_batch.pt"
-    eval_batch_path = "eval_batch_rand_rgb_and_sdm.pt"
+    eval_batch_path = "eval_batch.pt"
+    # eval_batch_path = "eval_batch_rand_rgb_and_sdm.pt"
+    # eval_batch_path = None
 
-    # max_depth = 80
-    max_depth = 255
+    max_depth = 80
 
     seed = 100
 
@@ -119,6 +125,7 @@ class cfg:
 
     tmpdir = os.getenv("TMPDIR")
     cluster_logdir = "/cluster/scratch/kzaitse/logs"
+    path_to_project_dir = os.environ["path_to_project_dir"]
 
     path_to_project_dir = None
     base_kitti_dataset_dir = None
@@ -148,19 +155,16 @@ class cfg:
         }
 
 
+
 if cfg.is_cluster:
-    cfg.path_to_project_dir = "/cluster/home/kzaitse"
     cfg.base_kitti_dataset_dir = os.path.join(
-        cfg.tmpdir, "/cluster/project/rsl/kzaitsev/kitti_dataset"
+        cfg.tmpdir, os.environ["base_kitti_dataset_dir"]
     )
 else:
-    cfg.path_to_project_dir = (
-        "/media/master/wext/msc_studies/second_semester/research_project/project"
-    )
-    cfg.base_kitti_dataset_dir = "/media/master/wext/cv_data/kitti-full"
+    cfg.base_kitti_dataset_dir = os.environ["base_kitti_dataset_dir"]
 
 if cfg.use_super_res:
-    cfg.exp_targets.append(f"super_res_{cfg.super_res_img_size}")
+    cfg.other_tags.append(f"super_res_{cfg.super_res_img_size}")
 
 
 if __name__ == "__main__":
