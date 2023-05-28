@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import torch
+from rsl_depth_completion.conditional_diffusion import utils as data_utils
 from rsl_depth_completion.conditional_diffusion.utils import load_extractors
 
 
@@ -13,6 +14,8 @@ class BaseDMDataset(torch.utils.data.Dataset):
         use_text_embed=True,
         do_crop=True,
         include_sdm_and_rgb_in_sample=True,
+        cond_img_sdm_interpolation_mode=None,
+        input_img_sdm_interpolation_mode=None,
         eval_batch=None,
         max_depth=80,
         *args,
@@ -25,10 +28,17 @@ class BaseDMDataset(torch.utils.data.Dataset):
         self.extractor_model, self.extractor_processor = load_extractors()
         self.max_depth = max_depth
         self.do_crop = do_crop
+        self.cond_img_sdm_interpolation_mode = cond_img_sdm_interpolation_mode
+        self.input_img_sdm_interpolation_mode = input_img_sdm_interpolation_mode
         self.include_sdm_and_rgb_in_sample = include_sdm_and_rgb_in_sample
         self.eval_batch = self.prep_eval_batch(eval_batch) if eval_batch else None
+        # self.eval_batch = None
 
     def prep_eval_batch(self, eval_batch):
+        eval_batch["input_img"] = self.prep_sparse_dm(
+            eval_batch["sdm"], self.input_img_sdm_interpolation_mode
+        )
+
         if self.use_cond_image:
             if self.use_rgb_as_cond_image:
                 cond_image = (
@@ -37,11 +47,17 @@ class BaseDMDataset(torch.utils.data.Dataset):
                     else eval_batch["rgb"] / 255
                 )
             else:
-                cond_image = (
+                sdms = (
                     eval_batch["sdm"]
                     if torch.max(eval_batch["sdm"]) <= 1
                     else eval_batch["sdm"] / self.max_depth
                 )
+                cond_images = []
+                for sdm in sdms:
+                    cond_images.append(
+                        self.prep_sparse_dm(sdm, self.cond_img_sdm_interpolation_mode)
+                    )
+                cond_image = torch.stack(cond_images, dim=0)
             eval_batch["cond_image"] = cond_image
         if self.use_text_embed:
             embeds = []
@@ -130,3 +146,26 @@ class BaseDMDataset(torch.utils.data.Dataset):
         assert len(x.shape) == 3, "Expected 3D tensor"
         if x.shape[0] < x.shape[-1]:
             return np.transpose(x, (1, 2, 0))
+
+    def prep_sparse_dm(self, sparse_dms, interpolation_mode):
+        if interpolation_mode is None:
+            return sparse_dms
+        if len(sparse_dms.shape) == 4:
+            cond_images = []
+            for sdm in sparse_dms:
+                cond_images.append(self._prep_sparse_dm(sdm, interpolation_mode))
+            cond_images = torch.stack(cond_images, dim=0)
+        else:
+            cond_images = self._prep_sparse_dm(sparse_dms, interpolation_mode)
+        return cond_images
+
+    def _prep_sparse_dm(self, sdm, interpolation_mode):
+        if interpolation_mode is None:
+            return sdm
+        return torch.from_numpy(
+            data_utils.infill_sparse_depth(sdm.numpy())[0]
+            if interpolation_mode == "infill"
+            else data_utils.interpolate_sparse_depth(
+                sdm.squeeze().numpy(), do_multiscale=True
+            )
+        ).unsqueeze(0)
