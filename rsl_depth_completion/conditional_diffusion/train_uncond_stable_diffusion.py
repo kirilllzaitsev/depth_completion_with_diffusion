@@ -197,7 +197,6 @@ def evaluate(config, epoch, pipeline, output_type="pil"):
 
 
 def train_loop(
-    train_writer,
     config: TrainingConfig,
     model,
     noise_scheduler,
@@ -211,8 +210,7 @@ def train_loop(
 
     eval_batch = next(iter(train_dataloader))
     batch_size = config.train_batch_size
-    with train_writer.as_default():
-        log_batch(eval_batch, step=1, batch_size=batch_size, prefix="eval")
+    log_batch(eval_batch, step=1, batch_size=batch_size, prefix="eval")
 
     # Now you train the model
     for epoch in range(cfg.num_epochs):
@@ -261,14 +259,13 @@ def train_loop(
             loss = loss.detach().item()
             running_loss["loss"] += loss
 
-            with train_writer.as_default():
-                tf.summary.scalar(
-                    "batch/loss",
-                    loss,
-                    step=global_step,
-                )
-                if cfg.do_overfit and cfg.do_save_inputs_every_batch:
-                    log_batch(batch, epoch, batch_size, prefix="train")
+            tf.summary.scalar(
+                "batch/loss",
+                loss,
+                step=global_step,
+            )
+            if cfg.do_overfit and cfg.do_save_inputs_every_batch:
+                log_batch(batch, epoch, batch_size, prefix="train")
             if cfg.do_overfit and batch_idx == 0:
                 break
 
@@ -359,10 +356,8 @@ else:
 exp_dir = f"{len(os.listdir(logdir)) + 1:03d}" if os.path.isdir(logdir) else "001"
 train_logdir = logdir / exp_dir / cond
 train_logdir.mkdir(parents=True, exist_ok=True)
-train_writer = tf.summary.create_file_writer(str(train_logdir))
 
 args = (
-    train_writer,
     config,
     model,
     noise_scheduler,
@@ -372,20 +367,3 @@ args = (
     train_logdir,
 )
 train_loop(*args)
-
-with train_writer.as_default():
-    tf.summary.text(
-        "hyperparams",
-        dict2mdtable({**ds_kwargs, **cfg.params(), "num_params": num_params}),
-        1,
-    )
-
-experiment.add_tags([k for k, v in ds_kwargs.items() if v])
-if hasattr(cfg, "other_tags"):
-    experiment.add_tags(cfg.exp_targets)
-experiment.add_tag(cfg.ds_name)
-experiment.add_tag("stable-diffusion")
-experiment.add_tag("overfit" if cfg.do_overfit else "full_data")
-# experiment.add_tag("debug" if cfg.do_debug else "train")
-
-experiment.end()

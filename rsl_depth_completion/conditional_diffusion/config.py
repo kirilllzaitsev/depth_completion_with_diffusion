@@ -150,7 +150,6 @@ class cfg:
         }
 
 
-
 if cfg.is_cluster:
     cfg.base_kitti_dataset_dir = os.path.join(
         cfg.tmpdir, os.environ["base_kitti_dataset_dir"]

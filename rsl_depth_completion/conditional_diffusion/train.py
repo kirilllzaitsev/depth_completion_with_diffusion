@@ -165,7 +165,7 @@ def log_batch(
     max_depth=80.0,
 ):
     for k, v in batch.items():
-        if k in ['text_embed']: 
+        if k in ["text_embed"]:
             continue
         v = v.cpu().numpy().transpose(0, 2, 3, 1)
         v = rescale_img_to_zero_one_range(v)

@@ -197,7 +197,7 @@ class Unet(nn.Module):
         )
 
         # Scale for resnet skip connections
-        self.skip_connect_scale = 2**-0.5
+        self.skip_connect_scale = 2 ** -0.5
 
         # Downsampling and Upsampling modules of the Unet
         self.downs = nn.ModuleList([])

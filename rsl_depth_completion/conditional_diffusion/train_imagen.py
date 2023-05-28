@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 
 import comet_ml
+
 # import tensorflow as tf
 import torch
 import torch.optim as optim
@@ -30,7 +31,9 @@ def main():
     for attr_key, attr_value in cfg_cls.__dict__.items():
         attr_type = type(attr_value)
         if not attr_key.startswith("__") and not callable(attr_value):
-            obj_attr_value = getattr(cfg, attr_key) if attr_key in vars(cfg) else attr_value
+            obj_attr_value = (
+                getattr(cfg, attr_key) if attr_key in vars(cfg) else attr_value
+            )
             default = obj_attr_value
             arg_name = f"--{attr_key}"
             if attr_type == bool:
@@ -117,11 +120,15 @@ def main():
 
     log_params_to_exp(experiment, {**ds_kwargs, "num_samples": num_samples}, "dataset")
     log_params_to_exp(
-        experiment, {**cfg.params(), "num_params": num_params, "train_logdir": train_logdir}, "base_config"
+        experiment,
+        {**cfg.params(), "num_params": num_params, "train_logdir": train_logdir},
+        "base_config",
     )
 
     experiment.add_tags(["cluster" if cfg.is_cluster else "local"])
-    experiment.add_tags(["imagen", cfg.ds_name, "overfit" if cfg.do_overfit else "full_data"])
+    experiment.add_tags(
+        ["imagen", cfg.ds_name, "overfit" if cfg.do_overfit else "full_data"]
+    )
     if cfg.other_tags:
         experiment.add_tags(cfg.exp_targets)
     if cfg.num_epochs == 1:
@@ -137,7 +144,6 @@ def main():
         num_params,
     )
 
-
     trainer_kwargs = dict(
         imagen=model,
         use_lion=False,
@@ -151,19 +157,15 @@ def main():
     trainer = ImagenTrainer(**trainer_kwargs)
     trainer.accelerator.init_trackers("train_example")
 
-    try:
-        train(
-            cfg,
-            trainer,
-            train_dataloader,
-            out_dir=train_logdir,
-            experiment=experiment,
-            trainer_kwargs=trainer_kwargs,
-            eval_batch=ds.eval_batch,
-        )
-    except Exception as e:
-        shutil.rmtree(train_logdir)
-        raise e
+    train(
+        cfg,
+        trainer,
+        train_dataloader,
+        out_dir=train_logdir,
+        experiment=experiment,
+        trainer_kwargs=trainer_kwargs,
+        eval_batch=ds.eval_batch,
+    )
 
     experiment.add_tag("completed")
     experiment.end()

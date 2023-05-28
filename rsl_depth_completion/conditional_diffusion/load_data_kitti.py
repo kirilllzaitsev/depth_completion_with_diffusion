@@ -16,7 +16,7 @@ from rsl_depth_completion.data.kitti.kitti_dataset import CustomKittiDCDataset
 class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
     def __init__(
         self,
-        cfg:cfg,
+        cfg: cfg,
         *args,
         **kwargs,
     ):
@@ -90,7 +90,9 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
         sparse_dm = items["d"]
         sparse_dm /= self.max_depth
 
-        interpolated_sparse_dm = self.prep_sparse_dm(sparse_dm, self.input_img_sdm_interpolation_mode)
+        interpolated_sparse_dm = self.prep_sparse_dm(
+            sparse_dm, self.input_img_sdm_interpolation_mode
+        )
 
         rgb_image = items["img"]
 
