@@ -134,7 +134,7 @@ def train(
 
                 if len(samples[0]) > 1:
                     experiment.log_metric(
-                        "epoch/intersample_abs_diff",
+                        "epoch/abs_diff_btw_samples",
                         torch.sum(torch.abs(samples[0][0] - samples[0][1])).item(),
                         step=global_step,
                     )
@@ -165,6 +165,8 @@ def log_batch(
     max_depth=80.0,
 ):
     for k, v in batch.items():
+        if k in ['text_embed']: 
+            continue
         v = v.cpu().numpy().transpose(0, 2, 3, 1)
         v = rescale_img_to_zero_one_range(v)
         for idx in range(batch_size):

@@ -8,8 +8,8 @@ from rsl_depth_completion.conditional_diffusion.utils import load_extractors
 class BaseDMDataset(torch.utils.data.Dataset):
     def __init__(
         self,
-        use_rgb_as_text_embed=False,
-        use_rgb_as_cond_image=True,
+        use_rgb_as_text_embed,
+        use_rgb_as_cond_image,
         use_cond_image=True,
         use_text_embed=True,
         do_crop=True,

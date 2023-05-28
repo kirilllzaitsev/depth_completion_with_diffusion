@@ -145,7 +145,7 @@ def main():
         max_grad_norm=1.0,
         fp16=cfg.fp16,
         use_ema=False,
-        accelerate_log_with="tensorboard",
+        accelerate_log_with="comet_ml",
         accelerate_project_dir="logs",
     )
     trainer = ImagenTrainer(**trainer_kwargs)
