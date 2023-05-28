@@ -138,3 +138,27 @@ def optional_normalize_img(x, scaler=255.0):
 
 def rescale_img_to_zero_one_range(x):
     return x / np.max(x)
+
+
+def log_batch(
+    batch,
+    step,
+    batch_size,
+    experiment,
+    prefix=None,
+    max_depth=80.0,
+):
+    for k, v in batch.items():
+        if k in ["text_embed"]:
+            continue
+        v = v.cpu().numpy().transpose(0, 2, 3, 1)
+        v = rescale_img_to_zero_one_range(v)
+        for idx in range(batch_size):
+            name = f"{k}_{idx}"
+            if prefix is not None:
+                name = f"{prefix}/{name}"
+            experiment.log_image(
+                v[idx],
+                name,
+                step=step,
+            )

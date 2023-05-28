@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from rsl_depth_completion.conditional_diffusion.custom_trainer import ImagenTrainer
 from rsl_depth_completion.conditional_diffusion.utils import (
+    log_batch,
     rescale_img_to_zero_one_range,
 )
 from torchvision.utils import save_image
@@ -156,25 +157,3 @@ def train(
                 break
 
 
-def log_batch(
-    batch,
-    step,
-    batch_size,
-    experiment: comet_ml.Experiment,
-    prefix=None,
-    max_depth=80.0,
-):
-    for k, v in batch.items():
-        if k in ["text_embed"]:
-            continue
-        v = v.cpu().numpy().transpose(0, 2, 3, 1)
-        v = rescale_img_to_zero_one_range(v)
-        for idx in range(batch_size):
-            name = f"{k}_{idx}"
-            if prefix is not None:
-                name = f"{prefix}/{name}"
-            experiment.log_image(
-                v[idx],
-                name,
-                step=step,
-            )
