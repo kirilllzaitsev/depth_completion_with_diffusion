@@ -1,7 +1,7 @@
 do_overfit: true
 do_lr_schedule: true
 do_early_stopping: true
-num_epochs: 4500
+num_epochs: 1500
 lr: 5e-5
 train_one_epoch: false
 sampling_freq: 150
