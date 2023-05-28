@@ -6,10 +6,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from rsl_depth_completion.conditional_diffusion.custom_trainer import ImagenTrainer
+from rsl_depth_completion.conditional_diffusion.utils import (
+    rescale_img_to_zero_one_range,
+)
 from torchvision.utils import save_image
 from tqdm import tqdm
-
-from rsl_depth_completion.conditional_diffusion.utils import rescale_img_to_zero_one_range
 
 
 def train(
@@ -88,7 +89,11 @@ def train(
             )
             if cfg.do_overfit and cfg.do_save_inputs_every_batch:
                 log_batch(
-                    batch, global_step, batch_size, experiment=experiment, prefix="train"
+                    batch,
+                    global_step,
+                    batch_size,
+                    experiment=experiment,
+                    prefix="train",
                 )
 
             global_step += 1
@@ -138,7 +143,9 @@ def train(
                     out_path = f"{out_dir}/sample-{epoch}-unet-{unet_idx}.png"
                     save_image(samples[unet_idx], str(out_path), nrow=10)
                     name = f"samples/unet_{unet_idx}"
-                    unet_samples = samples[unet_idx].cpu().detach().numpy().transpose(0, 2, 3, 1)
+                    unet_samples = (
+                        samples[unet_idx].cpu().detach().numpy().transpose(0, 2, 3, 1)
+                    )
                     for idx in range(len(samples[unet_idx])):
                         experiment.log_image(
                             unet_samples[idx],
@@ -155,37 +162,16 @@ def log_batch(
     batch_size,
     experiment: comet_ml.Experiment,
     prefix=None,
-    max_depth=80.0,
 ):
-    img_name = "input_img"
-    sdm_name = "sdm"
-    rgb_name = "rgb"
-    if prefix is not None:
-        img_name = f"{prefix}/{img_name}"
-        sdm_name = f"{prefix}/{sdm_name}"
-        rgb_name = f"{prefix}/{rgb_name}"
-
-    input_img = batch["input_img"].cpu().numpy().transpose(0, 2, 3, 1)
-    sdm = batch["sdm"].cpu().numpy().transpose(0, 2, 3, 1)
-    rgb = batch["rgb"].cpu().numpy().transpose(0, 2, 3, 1)
-    rgb = rescale_img_to_zero_one_range(rgb)
-    input_img = rescale_img_to_zero_one_range(input_img)
-    sdm = rescale_img_to_zero_one_range(sdm)
-    for idx in range(batch_size):
-        experiment.log_image(
-            input_img[idx],
-            f"{img_name}_{idx}",
-            step=step,
-        )
-        experiment.log_image(
-            sdm[idx],
-            f"{sdm_name}_{idx}",
-            step=step,
-        )
-        experiment.log_image(
-            rgb[idx],
-            f"{rgb_name}_{idx}",
-            step=step,
-        )
-
-
+    for k, v in batch.items():
+        v = v.cpu().numpy().transpose(0, 2, 3, 1)
+        v = rescale_img_to_zero_one_range(v)
+        for idx in range(batch_size):
+            name = f"{k}_{idx}"
+            if prefix is not None:
+                name = f"{prefix}/{name}"
+            experiment.log_image(
+                v[idx],
+                name,
+                step=step,
+            )
