@@ -1,21 +1,22 @@
-import numpy as np
-
 import os
 
+import comet_ml
 import cv2
 import matplotlib.pyplot as plt
-import tensorflow as tf
+import numpy as np
 import torch
 from rsl_depth_completion.conditional_diffusion.custom_trainer import ImagenTrainer
 from torchvision.utils import save_image
 from tqdm import tqdm
+
+from rsl_depth_completion.conditional_diffusion.utils import rescale_img_to_zero_one_range
 
 
 def train(
     cfg,
     trainer: ImagenTrainer,
     train_dataloader,
-    train_writer,
+    experiment: comet_ml.Experiment,
     out_dir,
     trainer_kwargs,
     eval_batch,
@@ -23,14 +24,14 @@ def train(
     progress_bar = tqdm(total=cfg.num_epochs, disable=False)
     batch_size = train_dataloader.batch_size
 
-    with train_writer.as_default():
-        log_batch(
-            eval_batch,
-            epoch=1,
-            batch_size=batch_size,
-            prefix="eval",
-            max_depth=cfg.max_depth,
-        )
+    log_batch(
+        eval_batch,
+        step=1,
+        batch_size=batch_size,
+        experiment=experiment,
+        prefix="eval",
+        max_depth=cfg.max_depth,
+    )
 
     global_step = 0
     is_multi_unet_training = (trainer.num_unets) > 1
@@ -80,22 +81,22 @@ def train(
 
                 running_loss["loss"] += loss
 
-            with train_writer.as_default():
-                tf.summary.scalar(
-                    "step/loss",
-                    loss,
-                    step=global_step,
+            experiment.log_metric(
+                "step/loss",
+                loss,
+                step=global_step,
+            )
+            if cfg.do_overfit and cfg.do_save_inputs_every_batch:
+                log_batch(
+                    batch, global_step, batch_size, experiment=experiment, prefix="train"
                 )
-                if cfg.do_overfit and cfg.do_save_inputs_every_batch:
-                    log_batch(batch, epoch, len(images), prefix="train")
 
             global_step += 1
 
             if cfg.do_overfit and batch_idx == 0:
                 break
 
-        with train_writer.as_default():
-            tf.summary.scalar("epoch/loss", running_loss["loss"], step=global_step)
+        experiment.log_metric("epoch/loss", running_loss["loss"], step=global_step)
 
         progress_bar.update(1)
 
@@ -126,33 +127,36 @@ def train(
                     return_all_unet_outputs=True,
                 )
 
-                with train_writer.as_default():
-                    if len(samples) > 1:
-                        tf.summary.scalar(
-                            "epoch/intersample_abs_diff",
-                            torch.sum(torch.abs(samples[0] - samples[1])),
-                            step=global_step,
-                        )
+                if len(samples[0]) > 1:
+                    experiment.log_metric(
+                        "epoch/intersample_abs_diff",
+                        torch.sum(torch.abs(samples[0][0] - samples[0][1])).item(),
+                        step=global_step,
+                    )
 
-                    for unet_idx in range(len(samples)):
-                        out_path = f"{out_dir}/sample-{epoch}-unet-{unet_idx}.png"
-                        save_image(samples[unet_idx], str(out_path), nrow=10)
-                        name = f"samples/unet_{unet_idx}"
-                        tf.summary.image(
-                            name,
-                            samples[unet_idx]
-                            .cpu()
-                            .detach()
-                            .numpy()
-                            .transpose(0, 2, 3, 1),
-                            max_outputs=batch_size,
+                for unet_idx in range(len(samples)):
+                    out_path = f"{out_dir}/sample-{epoch}-unet-{unet_idx}.png"
+                    save_image(samples[unet_idx], str(out_path), nrow=10)
+                    name = f"samples/unet_{unet_idx}"
+                    unet_samples = samples[unet_idx].cpu().detach().numpy().transpose(0, 2, 3, 1)
+                    for idx in range(len(samples[unet_idx])):
+                        experiment.log_image(
+                            unet_samples[idx],
+                            f"{name}_{idx}",
                             step=global_step,
                         )
             if cfg.train_one_epoch:
                 break
 
 
-def log_batch(batch, epoch, batch_size, prefix=None, max_depth=80.0):
+def log_batch(
+    batch,
+    step,
+    batch_size,
+    experiment: comet_ml.Experiment,
+    prefix=None,
+    max_depth=80.0,
+):
     img_name = "input_img"
     sdm_name = "sdm"
     rgb_name = "rgb"
@@ -162,36 +166,26 @@ def log_batch(batch, epoch, batch_size, prefix=None, max_depth=80.0):
         rgb_name = f"{prefix}/{rgb_name}"
 
     input_img = batch["input_img"].cpu().numpy().transpose(0, 2, 3, 1)
-    input_img = rescale_img_to_zero_one_range(input_img)
-    tf.summary.image(
-        img_name,
-        input_img,
-        max_outputs=batch_size,
-        step=epoch,
-    )
     sdm = batch["sdm"].cpu().numpy().transpose(0, 2, 3, 1)
-    sdm = rescale_img_to_zero_one_range(sdm)
-    tf.summary.image(
-        sdm_name,
-        sdm,
-        max_outputs=batch_size,
-        step=epoch,
-    )
     rgb = batch["rgb"].cpu().numpy().transpose(0, 2, 3, 1)
     rgb = rescale_img_to_zero_one_range(rgb)
-    tf.summary.image(
-        rgb_name,
-        rgb,
-        max_outputs=batch_size,
-        step=epoch,
-    )
+    input_img = rescale_img_to_zero_one_range(input_img)
+    sdm = rescale_img_to_zero_one_range(sdm)
+    for idx in range(batch_size):
+        experiment.log_image(
+            input_img[idx],
+            f"{img_name}_{idx}",
+            step=step,
+        )
+        experiment.log_image(
+            sdm[idx],
+            f"{sdm_name}_{idx}",
+            step=step,
+        )
+        experiment.log_image(
+            rgb[idx],
+            f"{rgb_name}_{idx}",
+            step=step,
+        )
 
 
-def optional_normalize_img(x, scaler=255.0):
-    if np.max(x) > 1:
-        x = x / scaler
-    return x
-
-
-def rescale_img_to_zero_one_range(x):
-    return x / np.max(x)
