@@ -68,7 +68,7 @@ class cfg:
     do_lr_schedule = True
     do_early_stopping = True
     other_tags = []
-    exp_targets = ["interp_cond_img"]
+    exp_targets = []
 
     # disabled = not is_cluster
     # disabled = True
@@ -133,12 +133,11 @@ class cfg:
         return {
             **{
                 k: v
-                for k, v in self.__class__.__dict__.items()
+                for k, v in vars(self).items()
                 if not k.startswith("__")
                 and not callable(v)
                 and k not in attrs_to_exclude
             },
-            **self.__dict__,
             **{
                 f"lr_schedule_cfg/{k}": v
                 for k, v in self.lr_schedule_cfg.params().items()

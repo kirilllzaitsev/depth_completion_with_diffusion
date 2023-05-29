@@ -7,7 +7,7 @@ import torch
 from rsl_depth_completion.conditional_diffusion.config import cfg as cfg_cls
 
 
-def create_tracking_exp(cfg):
+def create_tracking_exp(cfg) -> comet_ml.Experiment:
     experiment = comet_ml.Experiment(
         api_key="W5npcWDiWeNPoB2OYkQvwQD0C",
         project_name="rsl_depth_completion",
@@ -18,6 +18,7 @@ def create_tracking_exp(cfg):
         log_env_host=False,
         log_env_gpu=True,
         log_env_cpu=True,
+        log_code=False,
         disabled=cfg.disabled,
     )
 
@@ -25,11 +26,12 @@ def create_tracking_exp(cfg):
         "model.py",
         "load_data.py",
         "load_data_kitti.py",
+        "load_data_base.py",
         "train.py",
         "config.py",
-        "custom_imagen_pytorch.py",
+        "utils.py",
     ]:
-        experiment.log_asset(code_file, copy_to_tmp=False)
+        experiment.log_code(code_file)
 
     experiment.add_tags(["cluster" if cfg.is_cluster else "local"])
     experiment.add_tags(
@@ -46,7 +48,7 @@ def setup_optimizations():
     torch.backends.cudnn.benchmark = True
 
 
-def setup_train_pipeline():
+def setup_train_pipeline(logdir_name="standalone_trainer"):
     from rsl_depth_completion.diffusion.utils import set_seed
 
     cfg = cfg_cls(path=cfg_cls.default_file)
@@ -80,7 +82,7 @@ def setup_train_pipeline():
             )
 
     logdir = Path("./logs") if not cfg.is_cluster else Path(cfg.cluster_logdir)
-    logdir = logdir / "standalone_trainer"
+    logdir = logdir / logdir_name
 
     # shutil.rmtree(logdir, ignore_errors=True)
     exp_dir = f"{len(os.listdir(logdir)) + 1:03d}" if os.path.isdir(logdir) else "001"
