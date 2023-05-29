@@ -128,6 +128,7 @@ model = UNet2DConditionModel(
     ),  # the number of output channels for each UNet block
     cross_attention_dim=256,
     encoder_hid_dim=512,
+    attention_head_dim=4,
     down_block_types=(
         "DownBlock2D",
         "CrossAttnDownBlock2D",  # a ResNet downsampling block with spatial self-attention
@@ -138,7 +139,6 @@ model = UNet2DConditionModel(
         "CrossAttnUpBlock2D",  # a ResNet upsampling block with spatial self-attention
         "UpBlock2D",
     ),
-    attention_head_dim=4,
 )
 
 num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)

@@ -43,31 +43,26 @@ from tqdm.auto import tqdm
 
 @dataclass
 class TrainingConfig:
-    image_size = 64  # the generated image resolution
     train_batch_size = None
     eval_batch_size = None  # how many images to sample during evaluation
     num_epochs = None
     learning_rate = None
     gradient_accumulation_steps = 1
     lr_warmup_steps = 500
-    save_image_epochs = 2
     save_model_epochs = 200
     mixed_precision = "fp16"  # `no` for float32, `fp16` for automatic mixed precision
-    output_dir = "stable-diffusion"  # the model name locally and on the HF Hub
+    output_dir = None
 
-    push_to_hub = False  # whether to upload the saved model to the HF Hub
-    hub_private_repo = False
     overwrite_output_dir = True  # overwrite the old model when re-running the notebook
     seed = 0
 
     num_train_timesteps = None
     num_inference_timesteps = None
+    model_alias = "cond-stable-diffusion"
 
 
 def main():
-    cfg, train_logdir = setup_train_pipeline()
-
-    cfg.disabled = True
+    cfg, train_logdir = setup_train_pipeline(logdir_name=TrainingConfig.model_alias)
 
     ds_kwargs = get_ds_kwargs(cfg)
 
@@ -76,7 +71,8 @@ def main():
     )
 
     experiment = create_tracking_exp(cfg)
-    experiment.add_tag("uncond-stable-diffusion")
+    experiment.add_tag("cond-stable-diffusion")
+    experiment.log_code(os.path.basename(__file__))
 
     config = TrainingConfig()
     config.num_train_timesteps = cfg.timesteps
@@ -85,12 +81,16 @@ def main():
     config.eval_batch_size = cfg.batch_size
     config.num_epochs = cfg.num_epochs
     config.learning_rate = cfg.lr
+    config.output_dir = train_logdir
 
     model = UNet2DConditionModel(
         sample_size=64,  # the target image resolution
         in_channels=1,  # the number of input channels, 3 for RGB images
         out_channels=1,  # the number of output channels
         layers_per_block=2,  # how many ResNet layers to use per UNet block
+        cross_attention_dim=256,
+        encoder_hid_dim=512,
+        attention_head_dim=6,
         block_out_channels=(
             64,
             128,
@@ -98,12 +98,12 @@ def main():
         ),  # the number of output channels for each UNet block
         down_block_types=(
             "DownBlock2D",  # a regular ResNet downsampling block
-            "AttnDownBlock2D",  # a ResNet downsampling block with spatial self-attention
+            "CrossAttnDownBlock2D",  # a ResNet downsampling block with spatial self-attention
             "DownBlock2D",
         ),
         up_block_types=(
             "UpBlock2D",  # a regular ResNet upsampling block
-            "AttnUpBlock2D",  # a ResNet upsampling block with spatial self-attention
+            "CrossAttnUpBlock2D",  # a ResNet upsampling block with spatial self-attention
             "UpBlock2D",
         ),
     )
@@ -201,18 +201,23 @@ def train_loop(
     if accelerator.is_main_process:
         if config.output_dir is not None:
             os.makedirs(config.output_dir, exist_ok=True)
-        accelerator.init_trackers(
-            experiment.project_name,
-            init_kwargs={
-                "comet_ml": {"disabled": cfg.disabled},
-                "api_key": experiment.api_key,
-            },
-        )
+        # accelerator.init_trackers(
+        #     experiment.project_name,
+        #     init_kwargs={
+        #         "comet_ml": {
+        #             "disabled": cfg.disabled,
+        #             "api_key": experiment.api_key,
+        #             "experiment_key": experiment.get_key(),
+        #             "resume": True,
+        #         },
+        #     },
+        # )
+        # accelerator.trackers[0].writer = experiment
 
     batch_size = train_dataloader.batch_size
 
     model_id_or_path = "runwayml/stable-diffusion-v1-5"
-    vae = AutoencoderKL(in_channels=3, out_channels=1, latent_channels=1)
+    vae = AutoencoderKL(in_channels=1, out_channels=1, latent_channels=1)
     pipeline = StableDiffusionImg2ImgPipeline.from_pretrained(
         model_id_or_path,
         unet=model,
@@ -229,14 +234,15 @@ def train_loop(
 
     progress_bar_epoch = tqdm(total=cfg.num_epochs, disable=False)
 
-    log_batch(
-        eval_batch,
-        step=1,
-        batch_size=batch_size,
-        experiment=experiment,
-        prefix="eval",
-        max_depth=cfg.max_depth,
-    )
+    if accelerator.is_local_main_process:
+        log_batch(
+            eval_batch,
+            step=1,
+            batch_size=batch_size,
+            experiment=experiment,
+            prefix="eval",
+            max_depth=cfg.max_depth,
+        )
     global_step = 0
     # Now you train the model
     for epoch in range(cfg.num_epochs):
@@ -245,14 +251,14 @@ def train_loop(
             total=len(train_dataloader),
             disable=cfg.do_overfit or not accelerator.is_local_main_process,
         )
-        running_loss = {"loss": 0, "diff_to_orig_img": 0}
+        running_loss = {"loss": 0}
 
         for batch_idx, batch in enumerate(train_dataloader):
             if cfg.do_overfit:
                 batch = eval_batch
             images = batch["input_img"].to(accelerator.device)
             if "text_embed" in batch:
-                text_embeds = batch["text_embed"]
+                text_embeds = batch["text_embed"].to(accelerator.device)
             else:
                 text_embeds = None
             if "cond_img" in batch:
@@ -280,9 +286,12 @@ def train_loop(
 
             with accelerator.accumulate(model):
                 # Predict the noise residual
-                noise_pred = model(noisy_images, timesteps, 
-                                   encoder_hidden_states=text_embeds,
-                                   return_dict=False)[0]
+                noise_pred = model(
+                    noisy_images,
+                    timesteps,
+                    encoder_hidden_states=text_embeds,
+                    return_dict=False,
+                )[0]
                 loss = F.mse_loss(noise_pred, noise)
                 accelerator.backward(loss)
 
@@ -294,11 +303,6 @@ def train_loop(
             loss = loss.detach().item()
             running_loss["loss"] += loss
 
-            experiment.log_metric(
-                "step/loss",
-                loss,
-                step=global_step,
-            )
             if cfg.do_overfit and cfg.do_save_inputs_every_batch:
                 log_batch(
                     batch,
@@ -317,11 +321,11 @@ def train_loop(
                 "step": global_step,
             }
             progress_bar_batch.set_postfix(**logs)
-            accelerator.log(logs, step=global_step)
+            if accelerator.is_local_main_process:
+                experiment.log_metric("batch/loss", loss, step=global_step)
             global_step += 1
 
         if accelerator.is_main_process:
-
             experiment.log_metric("epoch/loss", running_loss["loss"], step=epoch)
 
             progress_bar_epoch.update(1)
@@ -331,20 +335,33 @@ def train_loop(
 
                 if cfg.do_sample:
                     eval_text_embeds = (
-                        eval_batch["text_embed"].to(accelerator.device) if "text_embed" in eval_batch else None
+                        eval_batch["text_embed"].to(accelerator.device)
+                        if "text_embed" in eval_batch
+                        else None
                     )
                     eval_cond_images = (
-                        eval_batch["cond_img"].to(accelerator.device) if "cond_img" in eval_batch else None
+                        eval_batch["cond_img"].to(accelerator.device)
+                        if "cond_img" in eval_batch
+                        else None
                     )
 
-                    samples = evaluate(config, epoch, pipeline, eval_cond_images, eval_text_embeds, output_type="numpy")
-
-                    name = "samples"
-                    experiment.log_image(
-                        samples,
-                        name,
-                        step=global_step,
+                    samples = evaluate(
+                        config,
+                        epoch,
+                        pipeline,
+                        eval_cond_images,
+                        eval_text_embeds,
+                        output_type="np",
                     )
+
+                    unet_idx = 0
+                    name = f"samples/unet_{unet_idx}"
+                    for i, sample in enumerate(samples):
+                        experiment.log_image(
+                            sample.transpose(2,0,1),
+                            f"{name}_{i}",
+                            step=global_step,
+                        )
                 if cfg.train_one_epoch:
                     break
 
