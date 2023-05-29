@@ -77,7 +77,7 @@ class BaseDMDataset(torch.utils.data.Dataset):
                 for sdm in eval_batch["sdm"]:
                     prepare_pixels = sdm if torch.max(sdm) > 1 else sdm * self.max_depth
                     sdm_pixel_values = self.prepare_pixels(
-                        cv2.cvtColor(sdm.squeeze().numpy(), cv2.COLOR_GRAY2RGB)
+                        cv2.cvtColor(prepare_pixels.squeeze().numpy().astype('uint8'), cv2.COLOR_GRAY2RGB)
                     )
                     sdm_embed = self.extractor_model.get_image_features(
                         pixel_values=sdm_pixel_values
@@ -145,6 +145,7 @@ class BaseDMDataset(torch.utils.data.Dataset):
         assert len(x.shape) == 3, "Expected 3D tensor"
         if x.shape[0] < x.shape[-1]:
             return np.transpose(x, (1, 2, 0))
+        return x
 
     def prep_sparse_dm(self, sparse_dms, interpolation_mode, channel_dim=2):
         if interpolation_mode is None:
