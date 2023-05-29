@@ -1,20 +1,14 @@
 import os
 
 import comet_ml
-import cv2
-import matplotlib.pyplot as plt
-import numpy as np
 import torch
 from rsl_depth_completion.conditional_diffusion.custom_trainer import ImagenTrainer
-from rsl_depth_completion.conditional_diffusion.utils import (
-    log_batch,
-    rescale_img_to_zero_one_range,
-)
+from rsl_depth_completion.conditional_diffusion.utils import log_batch
 from torchvision.utils import save_image
 from tqdm import tqdm
 
 
-def train(
+def train_loop(
     cfg,
     trainer: ImagenTrainer,
     train_dataloader,
@@ -155,5 +149,3 @@ def train(
                         )
             if cfg.train_one_epoch:
                 break
-
-

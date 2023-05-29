@@ -1,3 +1,4 @@
+import os
 import torch
 from load_data import load_data
 from model import init_model
@@ -7,7 +8,7 @@ from rsl_depth_completion.conditional_diffusion.pipeline_utils import (
     setup_train_pipeline,
     get_ds_kwargs
 )
-from rsl_depth_completion.conditional_diffusion.train import train
+from rsl_depth_completion.conditional_diffusion.train_imagen_loop import train_loop
 from rsl_depth_completion.conditional_diffusion.utils import log_params_to_exp
 
 
@@ -22,6 +23,9 @@ def main():
 
     experiment = create_tracking_exp(cfg)
     experiment.add_tag("imagen")
+    src_files = [os.path.basename(__file__), "custom_imagen_pytorch.py", "custom_trainer.py"]
+    for src_file in src_files:
+        experiment.log_code(src_file)
 
     num_samples = len(train_dataloader) * train_dataloader.batch_size
     unets, model = init_model(experiment, ds_kwargs, cfg)
@@ -57,7 +61,7 @@ def main():
     trainer = ImagenTrainer(**trainer_kwargs)
     trainer.accelerator.init_trackers("train_example")
 
-    train(
+    train_loop(
         cfg,
         trainer,
         train_dataloader,
