@@ -1,55 +1,41 @@
-import gc
 import os
 from dataclasses import dataclass
-from pathlib import Path
 
 import comet_ml
-import tensorflow as tf
 import torch
 import torch.nn.functional as F
 from accelerate import Accelerator
 from diffusers import DDPMPipeline, DDPMScheduler, UNet2DModel
 from diffusers.optimization import get_cosine_schedule_with_warmup
-from huggingface_hub import HfFolder, Repository, whoami
 from load_data import load_data
-from model import init_model
 from PIL import Image
 from rsl_depth_completion.conditional_diffusion.config import cfg as cfg_cls
-from rsl_depth_completion.conditional_diffusion.custom_trainer import ImagenTrainer
 from rsl_depth_completion.conditional_diffusion.load_data import load_data
 from rsl_depth_completion.conditional_diffusion.pipeline_utils import (
     create_tracking_exp,
     get_ds_kwargs,
     setup_train_pipeline,
 )
-from rsl_depth_completion.conditional_diffusion.train import log_batch, train
+from rsl_depth_completion.conditional_diffusion.train import log_batch
 from rsl_depth_completion.conditional_diffusion.utils import (
-    dict2mdtable,
     log_batch,
     log_params_to_exp,
-    rescale_img_to_zero_one_range,
 )
-from rsl_depth_completion.diffusion.utils import set_seed
-from torchvision.utils import save_image
 from tqdm.auto import tqdm
 
 
 @dataclass
 class TrainingConfig:
-    image_size = 64  # the generated image resolution
     train_batch_size = None
     eval_batch_size = None  # how many images to sample during evaluation
     num_epochs = None
     learning_rate = None
     gradient_accumulation_steps = 1
     lr_warmup_steps = 500
-    save_image_epochs = 2
     save_model_epochs = 200
     mixed_precision = "fp16"  # `no` for float32, `fp16` for automatic mixed precision
     output_dir = "stable-diffusion"  # the model name locally and on the HF Hub
 
-    push_to_hub = False  # whether to upload the saved model to the HF Hub
-    hub_private_repo = False
     overwrite_output_dir = True  # overwrite the old model when re-running the notebook
     seed = 0
 
@@ -60,8 +46,6 @@ class TrainingConfig:
 def main():
     cfg, train_logdir = setup_train_pipeline()
 
-    cfg.disabled = True
-
     ds_kwargs = get_ds_kwargs(cfg)
 
     ds, train_dataloader, val_dataloader = load_data(
@@ -70,6 +54,7 @@ def main():
 
     experiment = create_tracking_exp(cfg)
     experiment.add_tag("uncond-stable-diffusion")
+    experiment.log_code(os.path.basename(__file__))
 
     config = TrainingConfig()
     config.num_train_timesteps = cfg.timesteps
