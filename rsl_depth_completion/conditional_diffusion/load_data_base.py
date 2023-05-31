@@ -40,23 +40,10 @@ class BaseDMDataset(torch.utils.data.Dataset):
 
         if self.use_cond_image:
             if self.use_rgb_as_cond_image:
-                cond_image = (
-                    eval_batch["rgb"]
-                    if torch.max(eval_batch["rgb"]) <= 1
-                    else eval_batch["rgb"] / 255
-                )
+                rgb = eval_batch["rgb"]
+                cond_image = self.prep_rgbs_as_cond_img(rgb)
             else:
-                sdms = (
-                    eval_batch["sdm"]
-                    if torch.max(eval_batch["sdm"]) <= 1
-                    else eval_batch["sdm"] / self.max_depth
-                )
-                cond_images = []
-                for sdm in sdms:
-                    cond_images.append(
-                        self.prep_sparse_dm(sdm, self.cond_img_sdm_interpolation_mode, channel_dim=0)
-                    )
-                cond_image = torch.stack(cond_images, dim=0)
+                cond_image = self.prep_sdms_as_cond_img(eval_batch["sdm"])
             eval_batch["cond_img"] = cond_image
         if self.use_text_embed:
             embeds = []
@@ -77,7 +64,10 @@ class BaseDMDataset(torch.utils.data.Dataset):
                 for sdm in eval_batch["sdm"]:
                     prepare_pixels = sdm if torch.max(sdm) > 1 else sdm * self.max_depth
                     sdm_pixel_values = self.prepare_pixels(
-                        cv2.cvtColor(prepare_pixels.squeeze().numpy().astype('uint8'), cv2.COLOR_GRAY2RGB)
+                        cv2.cvtColor(
+                            prepare_pixels.squeeze().numpy().astype("uint8"),
+                            cv2.COLOR_GRAY2RGB,
+                        )
                     )
                     sdm_embed = self.extractor_model.get_image_features(
                         pixel_values=sdm_pixel_values
@@ -85,6 +75,23 @@ class BaseDMDataset(torch.utils.data.Dataset):
                     embeds.append(sdm_embed)
             eval_batch["text_embed"] = torch.stack(embeds, dim=0).detach()
         return eval_batch
+
+    def prep_rgbs_as_cond_img(self, rgb):
+        return rgb if torch.max(rgb) <= 1 else rgb / 255
+
+    def prep_sdms_as_cond_img(self, sdms):
+        sdms = sdms if torch.max(sdms) <= 1 else sdms / self.max_depth
+        cond_images = []
+        for sdm in sdms:
+            cond_images.append(
+                self.prep_sparse_dm(
+                    sdm, self.cond_img_sdm_interpolation_mode, channel_dim=0
+                )
+            )
+        if len(cond_images) == 1:
+            return cond_images[0]
+        cond_image = torch.stack(cond_images, dim=0)
+        return cond_image
 
     def extend_sample(self, sparse_dm, rgb_image):
         extension = {}
@@ -95,13 +102,9 @@ class BaseDMDataset(torch.utils.data.Dataset):
             # normalizing because imagen divides by 255 internally if dtype == uint8
             # which is wrong for the case of sparse depth
             if self.use_rgb_as_cond_image:
-                cond_image = rgb_image if torch.max(rgb_image) <= 1 else rgb_image / 255
+                cond_image = self.prep_rgbs_as_cond_img(rgb_image)
             else:
-                cond_image = (
-                    sparse_dm
-                    if torch.max(sparse_dm) <= 1
-                    else sparse_dm / self.max_depth
-                )
+                cond_image = self.prep_sdms_as_cond_img(sparse_dm)
             extension["cond_img"] = cond_image.detach()
 
         if self.use_text_embed:
