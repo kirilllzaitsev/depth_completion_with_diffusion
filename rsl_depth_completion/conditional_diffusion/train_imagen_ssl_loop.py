@@ -2,10 +2,10 @@ import os
 
 import comet_ml
 import torch
-from rsl_depth_completion.conditional_diffusion.custom_trainer import ImagenTrainer
-from rsl_depth_completion.conditional_diffusion.utils import log_batch
 from kbnet.kbnet_model import KBNetModel
 from kbnet.posenet_model import PoseNetModel
+from rsl_depth_completion.conditional_diffusion.custom_trainer_ssl import ImagenTrainer
+from rsl_depth_completion.conditional_diffusion.utils import log_batch
 from torchvision.utils import save_image
 from tqdm import tqdm
 
@@ -69,9 +69,7 @@ def train_loop(
             ).bool()
 
             assert trainer.num_unets == 1, "Only one unet is supported for now"
-            assert (
-                len(adj_imgs) == 2
-            ), "Only two adjacent frames are supported for now"
+            assert len(adj_imgs) == 2, "Only two adjacent frames are supported for now"
 
             for i in range(1, (trainer.num_unets) + 1):
                 ckpt_path = f"{out_dir}/checkpoint_{i}.pt"
@@ -103,13 +101,13 @@ def train_loop(
 
                 # Compute loss function
                 triplet_loss, loss_info = KBNetModel.compute_loss(
-                    image0=image0,
-                    image1=image1,
-                    image2=image2,
+                    image0=image0.cuda(),
+                    image1=image1.cuda(),
+                    image2=image2.cuda(),
                     output_depth0=output_depth0,
-                    sparse_depth0=filtered_sparse_depth0,
-                    validity_map_depth0=filtered_validity_map_depth0,
-                    intrinsics=intrinsics,
+                    sparse_depth0=filtered_sparse_depth0.cuda(),
+                    validity_map_depth0=filtered_validity_map_depth0.cuda(),
+                    intrinsics=intrinsics.cuda(),
                     pose01=pose01,
                     pose02=pose02,
                 )

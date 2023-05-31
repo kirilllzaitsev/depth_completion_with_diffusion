@@ -1154,6 +1154,9 @@ class ImagenTrainer(nn.Module):
             total_loss += loss.item()
 
             if self.training:
-                self.accelerator.backward(loss)
+                self.accelerator.backward(loss, retain_graph=True)
+
+        output_depths = torch.cat(output_depths, dim=0)
+        assert len(output_depths.shape) == 4
 
         return total_loss, output_depths

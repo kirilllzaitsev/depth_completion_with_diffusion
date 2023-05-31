@@ -85,7 +85,7 @@ class cfg:
     input_channels = 1
     timesteps = 200
     cond_scale = 8.0
-    input_res = 64
+    input_res = 256
     input_img_size = (input_res, input_res)
     memory_efficient = False  # results in a one-time memory burst that causes OOM
     num_resnet_blocks = 2
@@ -97,7 +97,7 @@ class cfg:
     use_super_res = False
     super_res_img_size = (input_res, input_res)
 
-    unets_output_res = [64]
+    unets_output_res = [256]
     if use_super_res:
         unets_output_res.append(super_res_img_size[0])
     stop_at_unet_number = 2
@@ -111,7 +111,8 @@ class cfg:
     sampling_freq = None
     do_save_inputs_every_batch = False
 
-    eval_batch_path = "eval_batch.pt"
+    # eval_batch_path = "eval_batch.pt"
+    eval_batch_path = "eval_batch_ssl.pt"
 
     max_depth = 80
 
