@@ -52,32 +52,37 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
             f"{cfg.path_to_project_dir}/rsl_depth_completion/configs/data/kitti_custom.yaml"
         ).read()
         ds_config_str = ds_config_str.replace("${data_dir}", cfg.base_kitti_dataset_dir)
-        ds_config = argparse.Namespace(**yaml.safe_load(ds_config_str)["ds_config"])
+        ds_config = yaml.safe_load(ds_config_str)["ds_config"]
+
+        path_to_data_dir = cfg.base_kitti_dataset_dir
+        image_paths = data_utils.read_paths(
+            ds_config[f'{ds_config["split"]}_image_path'],
+            path_to_data_dir=path_to_data_dir,
+        )
+        sparse_depth_paths = data_utils.read_paths(
+            ds_config[f'{ds_config["split"]}_sparse_depth_path'],
+            path_to_data_dir=path_to_data_dir,
+        )
+        intrinsics_paths = data_utils.read_paths(
+            ds_config[f'{ds_config["split"]}_intrinsics_path'],
+            path_to_data_dir=path_to_data_dir,
+        )
+        ground_truth_paths = data_utils.read_paths(
+            ds_config[f'{ds_config["split"]}_ground_truth_path'],
+            path_to_data_dir=path_to_data_dir,
+        )
+        ds_config = argparse.Namespace(**ds_config)
+        ds_config.data_dir = cfg.base_kitti_dataset_dir
         ds_config.use_pose = "photo" in ds_config.train_mode
         ds_config.result = ds_config.result_dir
         ds_config.use_rgb = ("rgb" in ds_config.input) or ds_config.use_pose
         ds_config.use_d = "d" in ds_config.input
         ds_config.use_g = "g" in ds_config.input
-
-        ds_config.data_dir = cfg.base_kitti_dataset_dir
-        path_to_data_dir = ds_config.data_dir
-        val_image_paths = data_utils.read_paths(
-            ds_config.val_image_path, path_to_data_dir=path_to_data_dir
-        )
-        val_sparse_depth_paths = data_utils.read_paths(
-            ds_config.val_sparse_depth_path, path_to_data_dir=path_to_data_dir
-        )
-        val_intrinsics_paths = data_utils.read_paths(
-            ds_config.val_intrinsics_path, path_to_data_dir=path_to_data_dir
-        )
-        val_ground_truth_paths = data_utils.read_paths(
-            ds_config.val_ground_truth_path, path_to_data_dir=path_to_data_dir
-        )
         kitti_kwargs = {
-            "image_paths": sorted(val_image_paths),
-            "sparse_depth_paths": sorted(val_sparse_depth_paths),
-            "intrinsics_paths": sorted(val_intrinsics_paths),
-            "ground_truth_paths": sorted(val_ground_truth_paths),
+            "image_paths": sorted(image_paths),
+            "sparse_depth_paths": sorted(sparse_depth_paths),
+            "intrinsics_paths": sorted(intrinsics_paths),
+            "ground_truth_paths": sorted(ground_truth_paths),
             "ds_config": ds_config,
         }
         return kitti_kwargs
@@ -98,6 +103,7 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
 
         sample = {
             "input_img": interpolated_sparse_dm.detach().numpy(),
+            **{k: v.detach().numpy() for k, v in items.items() if k not in ["d", "img"]},
         }
         extension = self.extend_sample(sparse_dm, rgb_image)
         sample.update(extension)

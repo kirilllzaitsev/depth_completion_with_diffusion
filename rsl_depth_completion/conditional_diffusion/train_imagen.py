@@ -1,19 +1,26 @@
 import os
-import torch
+
+import comet_ml
 from load_data import load_data
 from model import init_model
 from rsl_depth_completion.conditional_diffusion.custom_trainer import ImagenTrainer
 from rsl_depth_completion.conditional_diffusion.pipeline_utils import (
     create_tracking_exp,
+    get_ds_kwargs,
     setup_train_pipeline,
-    get_ds_kwargs
 )
 from rsl_depth_completion.conditional_diffusion.train_imagen_loop import train_loop
+from rsl_depth_completion.conditional_diffusion.train_imagen_ssl_loop import (
+    train_loop as train_loop_ssl,
+)
 from rsl_depth_completion.conditional_diffusion.utils import log_params_to_exp
 
 
 def main():
-    cfg, train_logdir = setup_train_pipeline()
+    logdir_name = "debug"
+    # logdir_name = "standalone_trainer"
+    cfg, train_logdir = setup_train_pipeline(logdir_name)
+    # cfg.disabled = True
 
     ds_kwargs = get_ds_kwargs(cfg)
 
@@ -23,7 +30,12 @@ def main():
 
     experiment = create_tracking_exp(cfg)
     experiment.add_tag("imagen")
-    src_files = [os.path.basename(__file__), "custom_imagen_pytorch.py", "custom_trainer.py"]
+    src_files = [
+        os.path.basename(__file__),
+        "train_imagen_loop.py",
+        "custom_imagen_pytorch.py",
+        "custom_trainer.py",
+    ]
     for src_file in src_files:
         experiment.log_code(src_file)
 
@@ -59,21 +71,23 @@ def main():
         accelerate_project_dir="logs",
     )
     trainer = ImagenTrainer(**trainer_kwargs)
-    trainer.accelerator.init_trackers("train_example")
 
-    train_loop(
-        cfg,
-        trainer,
-        train_dataloader,
+    train_loop_kwargs = dict(
+        cfg=cfg,
+        trainer=trainer,
+        train_dataloader=train_dataloader,
         out_dir=train_logdir,
         experiment=experiment,
         trainer_kwargs=trainer_kwargs,
         eval_batch=ds.eval_batch,
     )
+    if cfg.use_triplet_loss:
+        train_loop_ssl(**train_loop_kwargs)
+    else:
+        train_loop(**train_loop_kwargs)
 
     experiment.add_tag("completed")
     experiment.end()
-
 
 
 if __name__ == "__main__":

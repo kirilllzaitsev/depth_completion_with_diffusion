@@ -4,8 +4,8 @@ import comet_ml
 import torch
 from rsl_depth_completion.conditional_diffusion.custom_trainer import ImagenTrainer
 from rsl_depth_completion.conditional_diffusion.utils import log_batch
-from submodules.calibrated_backprojection_network.src.kbnet_model import KBNetModel
-from submodules.calibrated_backprojection_network.src.posenet_model import PoseNetModel
+from kbnet.kbnet_model import KBNetModel
+from kbnet.posenet_model import PoseNetModel
 from torchvision.utils import save_image
 from tqdm import tqdm
 

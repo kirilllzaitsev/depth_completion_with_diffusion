@@ -1,43 +1,30 @@
-import gc
 import os
 from dataclasses import dataclass
-from pathlib import Path
 
 import comet_ml
-import tensorflow as tf
 import torch
 import torch.nn.functional as F
 from accelerate import Accelerator
 from diffusers import (
     AutoencoderKL,
-    DDPMPipeline,
     DDPMScheduler,
     StableDiffusionImg2ImgPipeline,
     UNet2DConditionModel,
-    UNet2DModel,
 )
 from diffusers.optimization import get_cosine_schedule_with_warmup
-from huggingface_hub import HfFolder, Repository, whoami
 from load_data import load_data
-from model import init_model
 from PIL import Image
 from rsl_depth_completion.conditional_diffusion.config import cfg as cfg_cls
-from rsl_depth_completion.conditional_diffusion.custom_trainer import ImagenTrainer
 from rsl_depth_completion.conditional_diffusion.load_data import load_data
 from rsl_depth_completion.conditional_diffusion.pipeline_utils import (
     create_tracking_exp,
     get_ds_kwargs,
     setup_train_pipeline,
 )
-from rsl_depth_completion.conditional_diffusion.train import log_batch, train
 from rsl_depth_completion.conditional_diffusion.utils import (
-    dict2mdtable,
     log_batch,
     log_params_to_exp,
-    rescale_img_to_zero_one_range,
 )
-from rsl_depth_completion.diffusion.utils import set_seed
-from torchvision.utils import save_image
 from tqdm.auto import tqdm
 
 
@@ -358,7 +345,7 @@ def train_loop(
                     name = f"samples/unet_{unet_idx}"
                     for i, sample in enumerate(samples):
                         experiment.log_image(
-                            sample.transpose(2,0,1),
+                            sample.transpose(2, 0, 1),
                             f"{name}_{i}",
                             step=global_step,
                         )

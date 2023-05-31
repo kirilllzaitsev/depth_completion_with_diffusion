@@ -1,10 +1,12 @@
 import argparse
 import os
+import sys
 from pathlib import Path
 
 import comet_ml
 import torch
 from rsl_depth_completion.conditional_diffusion.config import cfg as cfg_cls
+from rsl_depth_completion.diffusion.utils import set_seed
 
 
 def create_tracking_exp(cfg) -> comet_ml.Experiment:
@@ -27,16 +29,13 @@ def create_tracking_exp(cfg) -> comet_ml.Experiment:
         "load_data.py",
         "load_data_kitti.py",
         "load_data_base.py",
-        "train.py",
         "config.py",
         "utils.py",
     ]:
         experiment.log_code(code_file)
 
     experiment.add_tags(["cluster" if cfg.is_cluster else "local"])
-    experiment.add_tags(
-        [cfg.ds_name, "overfit" if cfg.do_overfit else "full_data"]
-    )
+    experiment.add_tags([cfg.ds_name, "overfit" if cfg.do_overfit else "full_data"])
     if cfg.other_tags:
         experiment.add_tags(cfg.exp_targets)
     if cfg.num_epochs == 1:
@@ -49,29 +48,28 @@ def setup_optimizations():
 
 
 def setup_train_pipeline(logdir_name="standalone_trainer"):
-    from rsl_depth_completion.diffusion.utils import set_seed
-
     cfg = cfg_cls(path=cfg_cls.default_file)
 
-    parser = argparse.ArgumentParser()
-    for attr_key, attr_value in cfg_cls.__dict__.items():
-        attr_type = type(attr_value)
-        if not attr_key.startswith("__") and not callable(attr_value):
-            obj_attr_value = (
-                getattr(cfg, attr_key) if attr_key in vars(cfg) else attr_value
-            )
-            default = obj_attr_value
-            arg_name = f"--{attr_key}"
-            if attr_type == bool:
-                parser.add_argument(arg_name, action="store_true", default=default)
-            elif attr_type == list:
-                parser.add_argument(arg_name, nargs="*", default=default)
-            else:
-                parser.add_argument(arg_name, type=attr_type, default=default)
-    args, _ = parser.parse_known_args()
-    for k, v in vars(args).items():
-        if v is not None:
-            setattr(cfg, k, v)
+    if 'ipykernel' not in sys.argv[0]:
+        parser = argparse.ArgumentParser()
+        for attr_key, attr_value in cfg_cls.__dict__.items():
+            attr_type = type(attr_value)
+            if not attr_key.startswith("__") and not callable(attr_value):
+                obj_attr_value = (
+                    getattr(cfg, attr_key) if attr_key in vars(cfg) else attr_value
+                )
+                default = obj_attr_value
+                arg_name = f"--{attr_key}"
+                if attr_type == bool:
+                    parser.add_argument(arg_name, action="store_true", default=default)
+                elif attr_type == list:
+                    parser.add_argument(arg_name, nargs="*", default=default)
+                else:
+                    parser.add_argument(arg_name, type=attr_type, default=default)
+        args, _ = parser.parse_known_args()
+        for k, v in vars(args).items():
+            if v is not None:
+                setattr(cfg, k, v)
 
     set_seed(cfg.seed)
 

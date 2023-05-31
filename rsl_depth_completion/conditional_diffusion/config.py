@@ -76,6 +76,8 @@ class cfg:
     input_img_sdm_interpolation_mode = "infill"
     cond_img_sdm_interpolation_mode = "interpolate"
 
+    use_triplet_loss = True
+
     lr_schedule_cfg = lr_schedule_cfg
     early_stop_cfg = early_stop_cfg
 
@@ -109,11 +111,7 @@ class cfg:
     sampling_freq = None
     do_save_inputs_every_batch = False
 
-    # eval_batch_path = "eval_batch_rand_rgb.pt"
-    # eval_batch_path = "eval_batch_rand_sdm.pt"
     eval_batch_path = "eval_batch.pt"
-    # eval_batch_path = "eval_batch_rand_rgb_and_sdm.pt"
-    # eval_batch_path = None
 
     max_depth = 80
 
