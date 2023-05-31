@@ -70,7 +70,14 @@ def train_transform(sample, config):
                 adj_imgs[i] = transform_rgb(adj_imgs[i])
     # sparse_dm = drop_depth_measurements(sparse_dm, 0.9)
 
-    return img, sparse_dm, dense_dm, adj_imgs
+    result = {
+        "img": img,
+        "sparse_dm": sparse_dm,
+        "dense_dm": dense_dm,
+        "adj_imgs": adj_imgs,
+    }
+
+    return result
 
 
 def val_transform(sample, config):
@@ -94,4 +101,11 @@ def val_transform(sample, config):
     if adj_imgs is not None:
         for i in range(len(adj_imgs)):
             adj_imgs[i] = transform(adj_imgs[i])
-    return img, sparse_dm, dense_dm, adj_imgs
+    result = {
+        "img": img,
+        "sparse_dm": sparse_dm,
+        "dense_dm": dense_dm,
+        "adj_imgs": adj_imgs,
+    }
+
+    return result
