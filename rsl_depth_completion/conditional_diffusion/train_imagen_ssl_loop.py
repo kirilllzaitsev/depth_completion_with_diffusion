@@ -4,6 +4,7 @@ import comet_ml
 import torch
 from rsl_depth_completion.conditional_diffusion.custom_trainer import ImagenTrainer
 from rsl_depth_completion.conditional_diffusion.utils import log_batch
+from submodules.calibrated_backprojection_network.src.kbnet_model import KBNetModel
 from submodules.calibrated_backprojection_network.src.posenet_model import PoseNetModel
 from torchvision.utils import save_image
 from tqdm import tqdm
@@ -20,6 +21,12 @@ def train_loop(
 ):
     # Bulid PoseNet (only needed for training) network
     pose_model = get_pose_model(trainer.device)
+    optimizer = torch.optim.Adam(
+        [
+            {"params": pose_model.parameters(), "weight_decay": 0.00},
+        ],
+        lr=5e-5,
+    )
 
     progress_bar = tqdm(total=cfg.num_epochs, disable=False)
     batch_size = train_dataloader.batch_size
@@ -46,8 +53,8 @@ def train_loop(
         for batch_idx, batch in data_gen:
             if cfg.do_overfit:
                 batch = eval_batch
-            images = batch["input_img"]
-            adj_frames = batch["adj_frames"]
+            input_img = batch["input_img"]
+            adj_imgs = batch["adj_imgs"]
             if "text_embed" in batch:
                 text_embeds = batch["text_embed"]
             else:
@@ -60,6 +67,12 @@ def train_loop(
             validity_map_depth = torch.where(
                 batch["sdm"] > 0, torch.ones_like(batch["sdm"]), batch["sdm"]
             ).bool()
+
+            assert trainer.num_unets == 1, "Only one unet is supported for now"
+            assert (
+                len(adj_imgs) == 2
+            ), "Only two adjacent frames are supported for now"
+
             for i in range(1, (trainer.num_unets) + 1):
                 ckpt_path = f"{out_dir}/checkpoint_{i}.pt"
                 if is_multi_unet_training:
@@ -67,7 +80,7 @@ def train_loop(
                     if os.path.exists(ckpt_path):
                         trainer.load(ckpt_path)
                 loss, output_depth = trainer(
-                    images=images,
+                    images=input_img,
                     text_embeds=text_embeds,
                     cond_images=cond_images,
                     unet_number=i,
@@ -77,8 +90,37 @@ def train_loop(
                     else None,
                 )
 
+                image0 = batch["rgb"]
+                image1 = adj_imgs[0]
+                image2 = adj_imgs[1]
+                output_depth0 = output_depth
+                filtered_sparse_depth0 = batch["sdm"]
+                filtered_validity_map_depth0 = validity_map_depth
+                intrinsics = batch["intrinsics"]
+
                 pose01 = pose_model.forward(image0, image1)
                 pose02 = pose_model.forward(image0, image2)
+
+                # Compute loss function
+                triplet_loss, loss_info = KBNetModel.compute_loss(
+                    image0=image0,
+                    image1=image1,
+                    image2=image2,
+                    output_depth0=output_depth0,
+                    sparse_depth0=filtered_sparse_depth0,
+                    validity_map_depth0=filtered_validity_map_depth0,
+                    intrinsics=intrinsics,
+                    pose01=pose01,
+                    pose02=pose02,
+                )
+
+                # separate procedure (for now) for pose_model and main UNet
+                optimizer.zero_grad()
+                # validate the change in grads of the diffusion model
+                triplet_loss.backward(retain_graph=True)
+                optimizer.step()
+
+                # at this moment all grads are computed
                 trainer.update(unet_number=i)
                 if is_multi_unet_training:
                     trainer.save(ckpt_path)
@@ -158,6 +200,7 @@ def train_loop(
             if cfg.train_one_epoch:
                 break
 
+
 def get_pose_model(device):
     pose_model = PoseNetModel(
         encoder_type="resnet18",
@@ -167,7 +210,6 @@ def get_pose_model(device):
         device=device,
     )
 
-    parameters_pose_model = pose_model.parameters()
     pose_model.train()
     pose_model_restore_path = "/media/master/wext/msc_studies/second_semester/research_project/related_work/calibrated-backprojection-network/pretrained_models/kitti/posenet-kitti.pth"
     pose_model.restore_model(pose_model_restore_path)
