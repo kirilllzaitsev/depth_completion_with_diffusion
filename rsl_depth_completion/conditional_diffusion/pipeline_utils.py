@@ -54,7 +54,10 @@ def setup_train_pipeline(logdir_name="standalone_trainer", use_ssl=True):
 
     if "ipykernel" not in sys.argv[0]:
         parser = argparse.ArgumentParser()
-        for attr_key, attr_value in cfg_cls.__dict__.items():
+        defaults = vars(cfg_std_cls)
+        if use_ssl:
+            defaults = {**defaults, **vars(cfg_ssl_cls)}
+        for attr_key, attr_value in defaults.items():
             attr_type = type(attr_value)
             if not attr_key.startswith("__") and not callable(attr_value):
                 obj_attr_value = (

@@ -12,16 +12,19 @@ import pytorch_warmup as warmup
 import torch
 import torch.nn.functional as F
 from accelerate import Accelerator, DistributedDataParallelKwargs, DistributedType
+
+# from imagen_pytorch.imagen_pytorch import Imagen, NullUnet
+from custom_imagen_pytorch_ssl import Imagen, NullUnet
 from ema_pytorch import EMA
 from fsspec.core import url_to_fs
 from fsspec.implementations.local import LocalFileSystem
 from imagen_pytorch.data import cycle
 from imagen_pytorch.elucidated_imagen import ElucidatedImagen
-# from imagen_pytorch.imagen_pytorch import Imagen, NullUnet
-from custom_imagen_pytorch_ssl import Imagen, NullUnet
 from imagen_pytorch.version import __version__
+from kbnet.kbnet_model import KBNetModel
 from lion_pytorch import Lion
 from packaging import version
+from rsl_depth_completion.conditional_diffusion.utils import get_pose_model
 from torch import nn
 from torch.cuda.amp import GradScaler, autocast
 from torch.optim import Adam
@@ -328,6 +331,7 @@ class ImagenTrainer(nn.Module):
         **kwargs,
     ):
         super().__init__()
+
         assert (
             not ImagenTrainer.locked
         ), "ImagenTrainer can only be initialized once per process - for the sake of distributed training, you will now have to create a separate script to train each unet (or a script that accepts unet number as an argument)"
@@ -487,6 +491,15 @@ class ImagenTrainer(nn.Module):
         self.imagen.to(self.device)
         self.to(self.device)
 
+        # ssl
+        self.pose_model = get_pose_model(self.device)
+
+        self.pose_optimizer = torch.optim.Adam(
+            [
+                {"params": self.pose_model.parameters(), "weight_decay": 0.00},
+            ],
+            lr=5e-5,
+        )
         # checkpointing
 
         assert not (exists(checkpoint_path) ^ exists(checkpoint_every))
@@ -920,6 +933,7 @@ class ImagenTrainer(nn.Module):
 
         self.steps.copy_(loaded_obj["steps"])
 
+
         for ind in range(0, self.num_unets):
             scaler_key = f"scaler{ind}"
             optimizer_key = f"optim{ind}"
@@ -1071,7 +1085,11 @@ class ImagenTrainer(nn.Module):
             self.accelerator.clip_grad_norm_(unet.parameters(), self.max_grad_norm)
 
         optimizer.step()
+        # TODO: ensure the grad flow is correct
+        self.pose_optimizer.step()
+
         optimizer.zero_grad()
+        self.pose_optimizer.zero_grad()
 
         if self.use_ema:
             ema_unet = self.get_ema_unet(unet_number)
@@ -1142,19 +1160,47 @@ class ImagenTrainer(nn.Module):
             *args, split_size=max_batch_size, **kwargs
         ):
             with self.accelerator.autocast():
-                loss, output_depth = self.imagen(
+                image0 = chunked_kwargs.pop("image0")
+                image1 = chunked_kwargs.pop("image1")
+                image2 = chunked_kwargs.pop("image2")
+                filtered_sparse_depth0 = chunked_kwargs.pop("filtered_sparse_depth0")
+                filtered_validity_map_depth0 = chunked_kwargs.pop(
+                    "filtered_validity_map_depth0"
+                )
+                intrinsics = chunked_kwargs.pop("intrinsics").float()
+                pose01 = self.pose_model.forward(image0, image1)
+                pose02 = self.pose_model.forward(image0, image2)
+
+                imagen_loss, output_depth = self.imagen(
                     *chunked_args,
                     unet=self.unet_being_trained,
                     unet_number=unet_number,
                     **chunked_kwargs,
                 )
+                output_depth0 = output_depth
+
+                # Compute loss function
+                triplet_loss, loss_info = KBNetModel.compute_loss(
+                    image0=image0,
+                    image1=image1,
+                    image2=image2,
+                    output_depth0=output_depth0,
+                    sparse_depth0=filtered_sparse_depth0,
+                    validity_map_depth0=filtered_validity_map_depth0,
+                    intrinsics=intrinsics,
+                    pose01=pose01,
+                    pose02=pose02,
+                )
+
+                loss = imagen_loss + triplet_loss
+
                 loss = loss * chunk_size_frac
 
             output_depths.append(output_depth)
             total_loss += loss.item()
 
             if self.training:
-                self.accelerator.backward(loss, retain_graph=True)
+                self.accelerator.backward(loss)
 
         output_depths = torch.cat(output_depths, dim=0)
         assert len(output_depths.shape) == 4

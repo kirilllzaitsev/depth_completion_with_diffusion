@@ -19,15 +19,6 @@ def train_loop(
     trainer_kwargs,
     eval_batch,
 ):
-    # Bulid PoseNet (only needed for training) network
-    pose_model = get_pose_model(trainer.device)
-    optimizer = torch.optim.Adam(
-        [
-            {"params": pose_model.parameters(), "weight_decay": 0.00},
-        ],
-        lr=5e-5,
-    )
-
     progress_bar = tqdm(total=cfg.num_epochs, disable=False)
     batch_size = train_dataloader.batch_size
 
@@ -86,37 +77,13 @@ def train_loop(
                     validity_map_depth=validity_map_depth
                     if i == (trainer.num_unets) and cfg.use_validity_map_depth
                     else None,
+                    image0=batch["rgb"],
+                    image1=adj_imgs[0],
+                    image2=adj_imgs[1],
+                    filtered_sparse_depth0=batch["sdm"],
+                    filtered_validity_map_depth0=validity_map_depth,
+                    intrinsics=batch["intrinsics"],
                 )
-
-                image0 = batch["rgb"]
-                image1 = adj_imgs[0]
-                image2 = adj_imgs[1]
-                output_depth0 = output_depth
-                filtered_sparse_depth0 = batch["sdm"]
-                filtered_validity_map_depth0 = validity_map_depth
-                intrinsics = batch["intrinsics"]
-
-                pose01 = pose_model.forward(image0, image1)
-                pose02 = pose_model.forward(image0, image2)
-
-                # Compute loss function
-                triplet_loss, loss_info = KBNetModel.compute_loss(
-                    image0=image0.cuda(),
-                    image1=image1.cuda(),
-                    image2=image2.cuda(),
-                    output_depth0=output_depth0,
-                    sparse_depth0=filtered_sparse_depth0.cuda(),
-                    validity_map_depth0=filtered_validity_map_depth0.cuda(),
-                    intrinsics=intrinsics.cuda(),
-                    pose01=pose01,
-                    pose02=pose02,
-                )
-
-                # separate procedure (for now) for pose_model and main UNet
-                optimizer.zero_grad()
-                # validate the change in grads of the diffusion model
-                triplet_loss.backward(retain_graph=True)
-                optimizer.step()
 
                 # at this moment all grads are computed
                 trainer.update(unet_number=i)
@@ -197,18 +164,3 @@ def train_loop(
                         )
             if cfg.train_one_epoch:
                 break
-
-
-def get_pose_model(device):
-    pose_model = PoseNetModel(
-        encoder_type="resnet18",
-        rotation_parameterization="axis",
-        weight_initializer="xavier_normal",
-        activation_func="relu",
-        device=device,
-    )
-
-    pose_model.train()
-    pose_model_restore_path = "/media/master/wext/msc_studies/second_semester/research_project/related_work/calibrated-backprojection-network/pretrained_models/kitti/posenet-kitti.pth"
-    pose_model.restore_model(pose_model_restore_path)
-    return pose_model

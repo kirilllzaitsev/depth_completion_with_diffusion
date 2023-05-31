@@ -163,3 +163,20 @@ def log_batch(
                 name,
                 step=step,
             )
+
+
+def get_pose_model(device):
+    from kbnet.posenet_model import PoseNetModel
+
+    pose_model = PoseNetModel(
+        encoder_type="resnet18",
+        rotation_parameterization="axis",
+        weight_initializer="xavier_normal",
+        activation_func="relu",
+        device=device,
+    )
+
+    pose_model.train()
+    pose_model_restore_path = "/media/master/wext/msc_studies/second_semester/research_project/related_work/calibrated-backprojection-network/pretrained_models/kitti/posenet-kitti.pth"
+    pose_model.restore_model(pose_model_restore_path)
+    return pose_model
