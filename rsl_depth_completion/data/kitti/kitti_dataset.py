@@ -210,6 +210,13 @@ class CustomKittiDCDataset(KittiDCDataset):
     def get_data_transform(self, ds_config):
         return dl.get_data_transform(ds_config.split, ds_config.subsplit, ds_config)
 
+    def __getitem__(self, index):
+        items = super().__getitem__(index)
+
+        intrinsics = np.load(self.intrinsics_paths[index]).astype(np.float32)
+        items["intrinsics"] = torch.from_numpy(intrinsics)
+        return items
+
 
 if __name__ == "__main__":
     import argparse
@@ -218,11 +225,7 @@ if __name__ == "__main__":
     from kbnet import data_utils
 
     ds_config = argparse.Namespace(
-        **yaml.safe_load(
-            open(
-                "../../../configs/data/kitti_custom.yaml"
-            )
-        )["ds_config"]
+        **yaml.safe_load(open("../../../configs/data/kitti_custom.yaml"))["ds_config"]
     )
     ds_config.use_pose = "photo" in ds_config.train_mode
     ds_config.result = ds_config.result_dir
