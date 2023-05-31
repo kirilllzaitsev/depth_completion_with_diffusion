@@ -30,23 +30,20 @@ class DMDataset(torch.utils.data.Dataset):
         return len(self.ds)
 
 
-img_size = (64, 64)
-
-mnist_ds_internal_transform = partial(
-    mnist_transforms,
-    transform=tv.transforms.Compose(
-        [
-            tv.transforms.Resize(img_size, antialias=True),
-            tv.transforms.Lambda(lambda x: x),
-        ]
-    ),
-)
-
 from functools import lru_cache
 
 
 @lru_cache
 def load_data(cfg, ds_name="mnist", do_overfit=False, **ds_kwargs):
+    mnist_ds_internal_transform = partial(
+        mnist_transforms,
+        transform=tv.transforms.Compose(
+            [
+                tv.transforms.Resize(cfg.input_img_size, antialias=True),
+                tv.transforms.Lambda(lambda x: x),
+            ]
+        ),
+    )
     if ds_name == "mnist":
         sub_ds = MNISTDMDataset(
             img_transform=mnist_ds_internal_transform,
