@@ -57,6 +57,16 @@ class cfg:
     num_gpus = torch.cuda.device_count()
 
     def __init__(self, path=None):
+        if self.is_cluster:
+            self.base_kitti_dataset_dir = os.path.join(
+                self.tmpdir, os.environ["base_kitti_dataset_dir"]
+            )
+        else:
+            self.base_kitti_dataset_dir = os.environ["base_kitti_dataset_dir"]
+
+        if self.use_super_res:
+            self.other_tags.append(f"super_res_{self.super_res_img_size}")
+
         if path is not None:
             self.load_from_file(path)
 
@@ -76,7 +86,7 @@ class cfg:
     input_img_sdm_interpolation_mode = "infill"
     cond_img_sdm_interpolation_mode = "interpolate"
 
-    use_triplet_loss = True
+    use_triplet_loss = False
 
     lr_schedule_cfg = lr_schedule_cfg
     early_stop_cfg = early_stop_cfg
@@ -85,7 +95,7 @@ class cfg:
     input_channels = 1
     timesteps = 200
     cond_scale = 8.0
-    input_res = 256
+    input_res = 64
     input_img_size = (input_res, input_res)
     memory_efficient = False  # results in a one-time memory burst that causes OOM
     num_resnet_blocks = 2
@@ -97,7 +107,7 @@ class cfg:
     use_super_res = False
     super_res_img_size = (input_res, input_res)
 
-    unets_output_res = [256]
+    unets_output_res = [64]
     if use_super_res:
         unets_output_res.append(super_res_img_size[0])
     stop_at_unet_number = 2
@@ -111,8 +121,7 @@ class cfg:
     sampling_freq = None
     do_save_inputs_every_batch = False
 
-    # eval_batch_path = "eval_batch.pt"
-    eval_batch_path = "eval_batch_ssl.pt"
+    eval_batch_path = "eval_batch.pt"
 
     max_depth = 80
 
@@ -148,15 +157,11 @@ class cfg:
         }
 
 
-if cfg.is_cluster:
-    cfg.base_kitti_dataset_dir = os.path.join(
-        cfg.tmpdir, os.environ["base_kitti_dataset_dir"]
-    )
-else:
-    cfg.base_kitti_dataset_dir = os.environ["base_kitti_dataset_dir"]
-
-if cfg.use_super_res:
-    cfg.other_tags.append(f"super_res_{cfg.super_res_img_size}")
+class cfg_ssl(cfg):
+    input_res = 256
+    unets_output_res = [256]
+    eval_batch_path = "eval_batch_ssl.pt"
+    use_triplet_loss = True
 
 
 if __name__ == "__main__":

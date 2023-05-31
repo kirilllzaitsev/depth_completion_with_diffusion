@@ -5,7 +5,8 @@ from pathlib import Path
 
 import comet_ml
 import torch
-from rsl_depth_completion.conditional_diffusion.config import cfg as cfg_cls
+from rsl_depth_completion.conditional_diffusion.config import cfg as cfg_std_cls
+from rsl_depth_completion.conditional_diffusion.config import cfg_ssl as cfg_ssl_cls
 from rsl_depth_completion.diffusion.utils import set_seed
 
 
@@ -47,10 +48,11 @@ def setup_optimizations():
     torch.backends.cudnn.benchmark = True
 
 
-def setup_train_pipeline(logdir_name="standalone_trainer"):
+def setup_train_pipeline(logdir_name="standalone_trainer", use_ssl=True):
+    cfg_cls = cfg_ssl_cls if use_ssl else cfg_std_cls
     cfg = cfg_cls(path=cfg_cls.default_file)
 
-    if 'ipykernel' not in sys.argv[0]:
+    if "ipykernel" not in sys.argv[0]:
         parser = argparse.ArgumentParser()
         for attr_key, attr_value in cfg_cls.__dict__.items():
             attr_type = type(attr_value)
