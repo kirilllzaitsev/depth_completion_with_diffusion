@@ -1,8 +1,4 @@
 from rsl_depth_completion.conditional_diffusion.config import cfg
-from rsl_depth_completion.conditional_diffusion.custom_imagen_pytorch import (
-    Imagen,
-    Unet,
-)
 from rsl_depth_completion.conditional_diffusion.utils import log_params_to_exp
 
 
@@ -23,6 +19,15 @@ def init_model(experiment, ds_kwargs, cfg: cfg):
         cond_dim=None,
         cond_images_channels=cond_image_channels(ds_kwargs),
     )
+
+    if cfg.use_triplet_loss:
+        from rsl_depth_completion.conditional_diffusion.custom_imagen_pytorch_ssl import (
+            Imagen, Unet
+        )
+    else:
+        from rsl_depth_completion.conditional_diffusion.custom_imagen_pytorch import (
+            Imagen, Unet
+        )
 
     unet_base = Unet(**unet_base_params)
     unets = [unet_base]

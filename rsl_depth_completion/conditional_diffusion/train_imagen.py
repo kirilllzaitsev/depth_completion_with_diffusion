@@ -3,7 +3,6 @@ import os
 import comet_ml
 from load_data import load_data
 from model import init_model
-from rsl_depth_completion.conditional_diffusion.custom_trainer import ImagenTrainer
 from rsl_depth_completion.conditional_diffusion.pipeline_utils import (
     create_tracking_exp,
     get_ds_kwargs,
@@ -70,6 +69,11 @@ def main():
         accelerate_log_with="comet_ml",
         accelerate_project_dir="logs",
     )
+    if cfg.use_triplet_loss:
+        from rsl_depth_completion.conditional_diffusion.custom_trainer_ssl import ImagenTrainer
+    else:
+        from rsl_depth_completion.conditional_diffusion.custom_trainer import ImagenTrainer
+
     trainer = ImagenTrainer(**trainer_kwargs)
 
     train_loop_kwargs = dict(
