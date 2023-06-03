@@ -35,7 +35,7 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
                     for k, v in torch.load(eval_batch_path)[cfg.input_res].items()
                 }
             else:
-                print(f"eval_batch.pt does not contain {cfg.input_res}")
+                print(f"{eval_batch_path} does not contain {cfg.input_res}")
         BaseDMDataset.__init__(
             self,
             *args,

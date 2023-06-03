@@ -30,11 +30,34 @@ def train_loop(
         max_depth=cfg.max_depth,
     )
 
-    global_step = 0
-    is_multi_unet_training = (trainer.num_unets) > 1
+    for unet_idx in range(1, (trainer.num_unets) + 1):
+        train_loop_single_unet(
+            cfg,
+            trainer,
+            train_dataloader,
+            experiment,
+            out_dir,
+            eval_batch,
+            progress_bar,
+            batch_size,
+            unet_idx,
+        )
 
+
+def train_loop_single_unet(
+    cfg,
+    trainer: ImagenTrainer,
+    train_dataloader,
+    experiment,
+    out_dir,
+    eval_batch,
+    progress_bar,
+    batch_size,
+    unet_idx,
+):
+    global_step = 0
     for epoch in range(cfg.num_epochs):
-        progress_bar.set_description(f"Epoch {epoch}")
+        progress_bar.set_description(f"Unet {unet_idx}\tEpoch {epoch}")
         running_loss = {"loss": 0, "diff_to_orig_img": 0}
         if cfg.do_overfit:
             data_gen = enumerate(train_dataloader)
@@ -56,27 +79,19 @@ def train_loop(
             validity_map_depth = torch.where(
                 batch["sdm"] > 0, torch.ones_like(batch["sdm"]), batch["sdm"]
             ).bool()
-            for i in range(1, (trainer.num_unets) + 1):
-                ckpt_path = f"{out_dir}/checkpoint_{i}.pt"
-                if is_multi_unet_training:
-                    trainer = ImagenTrainer(**trainer_kwargs)
-                    if os.path.exists(ckpt_path):
-                        trainer.load(ckpt_path)
-                loss = trainer(
-                    images=images,
-                    text_embeds=text_embeds,
-                    cond_images=cond_images,
-                    unet_number=i,
-                    max_batch_size=cfg.max_batch_size,
-                    validity_map_depth=validity_map_depth
-                    if i == (trainer.num_unets) and cfg.use_validity_map_depth
-                    else None,
-                )
-                trainer.update(unet_number=i)
-                if is_multi_unet_training:
-                    trainer.save(ckpt_path)
+            loss = trainer(
+                images=images,
+                text_embeds=text_embeds,
+                cond_images=cond_images,
+                unet_number=unet_idx,
+                max_batch_size=cfg.max_batch_size,
+                validity_map_depth=validity_map_depth
+                if unet_idx == (trainer.num_unets) and cfg.use_validity_map_depth
+                else None,
+            )
+            trainer.update(unet_number=unet_idx)
 
-                running_loss["loss"] += loss
+            running_loss["loss"] += loss
 
             experiment.log_metric(
                 "step/loss",
@@ -124,7 +139,7 @@ def train_loop(
                     cond_images=eval_cond_images,
                     cond_scale=cfg.cond_scale,
                     batch_size=batch_size,
-                    stop_at_unet_number=cfg.stop_at_unet_number,
+                    stop_at_unet_number=unet_idx,
                     return_all_unet_outputs=True,
                 )
 
@@ -135,14 +150,18 @@ def train_loop(
                         step=global_step,
                     )
 
-                for unet_idx in range(len(samples)):
-                    out_path = f"{out_dir}/sample-{epoch}-unet-{unet_idx}.png"
-                    save_image(samples[unet_idx], str(out_path), nrow=10)
-                    name = f"samples/unet_{unet_idx}"
+                for unet_idx_samples in range(len(samples), unet_idx):
+                    out_path = f"{out_dir}/sample-{epoch}-unet-{unet_idx_samples}.png"
+                    save_image(samples[unet_idx_samples], str(out_path), nrow=10)
+                    name = f"samples/unet_{unet_idx_samples}"
                     unet_samples = (
-                        samples[unet_idx].cpu().detach().numpy().transpose(0, 2, 3, 1)
+                        samples[unet_idx_samples]
+                        .cpu()
+                        .detach()
+                        .numpy()
+                        .transpose(0, 2, 3, 1)
                     )
-                    for idx in range(len(samples[unet_idx])):
+                    for idx in range(len(samples[unet_idx_samples])):
                         experiment.log_image(
                             unet_samples[idx],
                             f"{name}_{idx}",
