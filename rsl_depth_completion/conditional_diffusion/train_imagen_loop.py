@@ -139,6 +139,7 @@ def train_loop_single_unet(
                     cond_images=eval_cond_images,
                     cond_scale=cfg.cond_scale,
                     batch_size=batch_size,
+                    start_at_unet_number=unet_idx,
                     stop_at_unet_number=unet_idx,
                     return_all_unet_outputs=True,
                 )
