@@ -38,6 +38,8 @@ def create_tracking_exp(cfg) -> comet_ml.Experiment:
     experiment.add_tags(["cluster" if cfg.is_cluster else "local"])
     experiment.add_tags([cfg.ds_name, "overfit" if cfg.do_overfit else "full_data"])
     if cfg.other_tags:
+        experiment.add_tags(cfg.other_tags)
+    if cfg.exp_targets:
         experiment.add_tags(cfg.exp_targets)
     if cfg.num_epochs == 1:
         experiment.add_tag("debug")
@@ -67,10 +69,12 @@ def setup_train_pipeline(logdir_name="standalone_trainer", use_ssl=True):
                 arg_name = f"--{attr_key}"
                 if attr_type == bool:
                     parser.add_argument(arg_name, action="store_true", default=default)
-                elif attr_type == list:
-                    parser.add_argument(arg_name, nargs="*", default=default)
+                elif attr_type in (list, tuple):
+                    attr_type = type(attr_value[0]) if attr_value else str
+                    parser.add_argument(arg_name, nargs="*", default=default, type=attr_type)
                 else:
                     parser.add_argument(arg_name, type=attr_type, default=default)
+        # TODO: refactor this. it overrides what was set with setattr in cfg itself
         args, _ = parser.parse_known_args()
         for k, v in vars(args).items():
             if v is not None:
