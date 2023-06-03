@@ -19,11 +19,12 @@ def train_loop(
 ):
     progress_bar = tqdm(total=cfg.num_epochs, disable=False)
     batch_size = train_dataloader.batch_size
+    eval_batch_size = eval_batch["input_img"].shape[0]
 
     log_batch(
         eval_batch,
         step=1,
-        batch_size=batch_size,
+        batch_size=eval_batch_size,
         experiment=experiment,
         prefix="eval",
         max_depth=cfg.max_depth,
