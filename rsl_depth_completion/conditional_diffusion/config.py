@@ -91,7 +91,7 @@ class cfg:
     lr_schedule_cfg = lr_schedule_cfg
     early_stop_cfg = early_stop_cfg
 
-    base_dim = 32
+    base_dim = 64
     sr_dim = 64
     input_channels = 1
     timesteps = 200
