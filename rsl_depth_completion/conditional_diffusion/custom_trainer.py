@@ -564,7 +564,7 @@ class ImagenTrainer(nn.Module):
         assert (
             not exists(self.only_train_unet_number)
             or self.only_train_unet_number == unet_number
-        ), "you cannot only train on one unet at a time. you will need to save the trainer into a checkpoint, and resume training on a new unet"
+        ), "one trainer instance can train only one unet. you will need to save the trainer into a checkpoint, and do trainer.load for another unet"
 
         self.only_train_unet_number = unet_number
         self.imagen.only_train_unet_number = unet_number
