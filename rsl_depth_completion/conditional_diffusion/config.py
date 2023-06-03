@@ -72,6 +72,10 @@ class cfg:
 
         self.num_workers = min(os.cpu_count(), max(self.batch_size, self.num_gpus))
 
+        assert not (
+            self.only_base and (self.only_super_res or self.use_super_res)
+        ), "only_base and (only_super_res or use_super_res) are mutually exclusive"
+
     do_sample = True
     do_overfit = True
     do_train_val_split = False
@@ -105,6 +109,7 @@ class cfg:
     use_validity_map_depth = False
     sz_loss_weight = 0.4
 
+    only_base = False
     use_super_res = False
     only_super_res = False
     super_res_img_size = (input_res, input_res)
@@ -143,6 +148,9 @@ class cfg:
             self.super_res_img_size = (value, value)
             if self.use_super_res:
                 self.unets_output_res[1] = value
+        elif name == "only_super_res":
+            self.use_super_res = True
+            self.only_base = False
         self.__dict__[name] = value
 
     def params(self):

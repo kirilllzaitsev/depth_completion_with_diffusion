@@ -33,7 +33,12 @@ def train_loop(
     else:
         start_at_unet_number = 1
 
-    for unet_idx in range(start_at_unet_number, (trainer.num_unets) + 1):
+    if cfg.only_base:
+        stop_at_unet_number = 1
+    else:
+        stop_at_unet_number = trainer.num_unets
+
+    for unet_idx in range(start_at_unet_number, stop_at_unet_number + 1):
         trainer = ImagenTrainer(**trainer_kwargs)
         train_loop_single_unet(
             cfg,
@@ -45,18 +50,19 @@ def train_loop(
             unet_idx,
             save_path=f"{out_dir}/unet-{unet_idx}-last.pt",
         )
-    global_step = ((trainer.num_unets) + 1) * cfg.num_epochs * len(train_dataloader) + 1
-    if cfg.do_sample:
-        sample(
-            cfg,
-            trainer,
-            experiment,
-            out_dir,
-            eval_batch,
-            global_step,
-            start_at_unet_number=start_at_unet_number,
-            stop_at_unet_number=len(trainer.unets) + 1,
-        )
+    if not (cfg.only_base or cfg.only_super_res):
+        global_step = (stop_at_unet_number) * cfg.num_epochs * len(train_dataloader) + 1
+        if cfg.do_sample:
+            sample(
+                cfg,
+                trainer,
+                experiment,
+                out_dir,
+                eval_batch,
+                global_step,
+                start_at_unet_number=start_at_unet_number,
+                stop_at_unet_number=len(trainer.unets) + 1,
+            )
 
 
 def train_loop_single_unet(
@@ -215,3 +221,4 @@ def sample(
                 f"{name}_{idx}",
                 step=global_step,
             )
+    return samples

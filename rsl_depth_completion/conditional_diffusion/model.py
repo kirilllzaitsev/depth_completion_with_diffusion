@@ -50,11 +50,15 @@ def init_model(experiment, ds_kwargs, cfg: cfg):
         print("Using NullUnet as base unet")
     else:
         unet_base = Unet(**unet_base_params)
+
     unets = [unet_base]
     input_imgsize = cfg.input_img_size
     assert input_imgsize[0] == input_imgsize[1], "Only square images supported"
     image_sizes = cfg.unets_output_res
 
+    if cfg.only_base:
+        image_sizes = [image_sizes[0]]
+        
     if cfg.use_super_res:
         unet_super_res = Unet(
             dim=cfg.sr_dim,
