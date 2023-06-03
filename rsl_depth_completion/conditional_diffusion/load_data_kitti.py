@@ -92,11 +92,12 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
         if self.do_crop:
             items["d"] = center_crop(items["d"], crop_size=self.input_img_size)
             items["img"] = center_crop(items["img"], crop_size=self.input_img_size)
-            adj_imgs = []
-            for i, img in enumerate(items["adj_imgs"]):
-                cropped_adj_img = center_crop(img, crop_size=self.input_img_size)
-                adj_imgs.append(cropped_adj_img)
-            items["adj_imgs"] = torch.stack(adj_imgs, dim=0).float()
+            if "adj_imgs" in items:
+                adj_imgs = []
+                for i, img in enumerate(items["adj_imgs"]):
+                    cropped_adj_img = center_crop(img, crop_size=self.input_img_size)
+                    adj_imgs.append(cropped_adj_img)
+                items["adj_imgs"] = torch.stack(adj_imgs, dim=0).float()
         sparse_dm = items["d"]
         sparse_dm /= self.max_depth
 

@@ -150,19 +150,34 @@ def log_batch(
 ):
     for k, v in batch.items():
         # if k in ["text_embed", "adj_imgs"]:
-        if k in ["gt", "g", "adj_imgs", "r_mats", "t_vecs", "intrinsics", "text_embed"]:
+        if k in ["gt", "g", "r_mats", "t_vecs", "intrinsics", "text_embed"]:
             continue
-        v = v.cpu().numpy().transpose(0, 2, 3, 1)
-        v = rescale_img_to_zero_one_range(v)
-        for idx in range(batch_size):
-            name = f"{k}_{idx}"
-            if prefix is not None:
-                name = f"{prefix}/{name}"
-            experiment.log_image(
-                v[idx],
-                name,
-                step=step,
-            )
+        if k == "adj_imgs":
+            for idx, img in enumerate(v):
+                log_image_comet(
+                    step,
+                    batch_size,
+                    experiment,
+                    prefix,
+                    f"{k}_{idx}",
+                    img,
+                )
+        else:
+            log_image_comet(step, batch_size, experiment, prefix, k, v)
+
+
+def log_image_comet(step, batch_size, experiment, prefix, k, v):
+    v = v.cpu().numpy().transpose(0, 2, 3, 1)
+    v = rescale_img_to_zero_one_range(v)
+    for idx in range(batch_size):
+        name = f"{k}_{idx}"
+        if prefix is not None:
+            name = f"{prefix}/{name}"
+        experiment.log_image(
+            v[idx],
+            name,
+            step=step,
+        )
 
 
 def get_pose_model(device):
