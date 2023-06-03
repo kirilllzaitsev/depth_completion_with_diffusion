@@ -39,9 +39,9 @@ class cfg:
     default_file = "configs/overfit.yaml"
     # default_file = "configs/full_dataset.yaml"
 
-    batch_size = None
-    num_workers = None
-    do_save_model = None
+    batch_size = 0
+    num_workers = 0
+    do_save_model = True
     do_save_last_model = True
     is_cluster = os.path.exists("/cluster")
 
@@ -73,7 +73,7 @@ class cfg:
         self.num_workers = min(os.cpu_count(), max(self.batch_size, self.num_gpus))
 
     do_sample = True
-    do_overfit = None
+    do_overfit = True
     do_train_val_split = False
     do_lr_schedule = True
     do_early_stopping = True
@@ -91,7 +91,7 @@ class cfg:
     lr_schedule_cfg = lr_schedule_cfg
     early_stop_cfg = early_stop_cfg
 
-    base_dim = 64
+    base_dim = 32
     sr_dim = 64
     input_channels = 1
     timesteps = 200
@@ -116,10 +116,10 @@ class cfg:
     fp16 = True
     max_batch_size = num_gpus
 
-    num_epochs = None
+    num_epochs = 0
     train_one_epoch = False
-    lr = None
-    sampling_freq = None
+    lr = 0.0
+    sampling_freq = 0
     do_save_inputs_every_batch = False
 
     eval_batch_path = "eval_batch.pt"
