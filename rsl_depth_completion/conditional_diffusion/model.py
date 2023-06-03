@@ -3,30 +3,45 @@ from rsl_depth_completion.conditional_diffusion.utils import log_params_to_exp
 
 
 def init_model(experiment, ds_kwargs, cfg: cfg):
+    # unet_base_params = dict(
+    #     dim=cfg.dim,
+    #     dim_mults=[1, 1, 2, 2, 4, 4],
+    #     channels=1,
+    #     channels_out=None,
+    #     text_embed_dim=512,
+    #     num_resnet_blocks=cfg.num_resnet_blocks,
+    #     layer_attns=[False, False, True, True, True, True],
+    #     layer_cross_attns=[False, False, True, True, True, True],
+    #     attn_heads=6,
+    #     lowres_cond=False,
+    #     memory_efficient=cfg.memory_efficient,
+    #     attend_at_middle=False,
+    #     cond_dim=None,
+    #     cond_images_channels=cond_image_channels(ds_kwargs),
+    # )
     unet_base_params = dict(
-        dim=cfg.dim,
-        dim_mults=[1, 1, 2, 2, 4, 4],
-        channels=1,
-        channels_out=None,
-        text_embed_dim=512,
+        dim=cfg.base_dim,
+        dim_mults=(1, 2, 3, 4),
         num_resnet_blocks=cfg.num_resnet_blocks,
-        layer_attns=[False, False, True, True, True, True],
-        layer_cross_attns=[False, False, True, True, True, True],
-        attn_heads=6,
-        lowres_cond=False,
-        memory_efficient=cfg.memory_efficient,
-        attend_at_middle=False,
-        cond_dim=None,
+        # num_resnet_blocks=3,
+        layer_attns=(False, True, True, True),
+        layer_cross_attns=(False, True, True, True),
+        attn_heads=8,
+        ff_mult=2.0,
+        memory_efficient=False,
+        channels=1,
         cond_images_channels=cond_image_channels(ds_kwargs),
     )
 
     if cfg.use_triplet_loss:
         from rsl_depth_completion.conditional_diffusion.custom_imagen_pytorch_ssl import (
-            Imagen, Unet
+            Imagen,
+            Unet,
         )
     else:
         from rsl_depth_completion.conditional_diffusion.custom_imagen_pytorch import (
-            Imagen, Unet
+            Imagen,
+            Unet,
         )
 
     unet_base = Unet(**unet_base_params)
@@ -37,7 +52,7 @@ def init_model(experiment, ds_kwargs, cfg: cfg):
 
     if cfg.use_super_res:
         unet_super_res = Unet(
-            dim=cfg.dim,
+            dim=cfg.sr_dim,
             dim_mults=[1, 1, 2, 2, 4, 4],
             channels=1,
             channels_out=None,

@@ -91,13 +91,14 @@ class cfg:
     lr_schedule_cfg = lr_schedule_cfg
     early_stop_cfg = early_stop_cfg
 
-    dim = 32
+    base_dim = 64
+    sr_dim = 64
     input_channels = 1
     timesteps = 200
     cond_scale = 8.0
     input_res = 64
     input_img_size = (input_res, input_res)
-    memory_efficient = False  # results in a one-time memory burst that causes OOM
+    memory_efficient = False
     num_resnet_blocks = 2
     auto_normalize_img = True
 
@@ -109,7 +110,7 @@ class cfg:
 
     unets_output_res = [64]
     if use_super_res:
-        unets_output_res.append(super_res_img_size[0])
+        unets_output_res.append(input_res)
     stop_at_unet_number = 2
 
     fp16 = True
@@ -132,6 +133,16 @@ class cfg:
     tmpdir = os.getenv("TMPDIR")
     cluster_logdir = "/cluster/scratch/kzaitse/logs"
     path_to_project_dir = os.environ["path_to_project_dir"]
+
+    def __setattr__(self, name, value):
+        if name == "batch_size":
+            self.num_workers = min(os.cpu_count(), max(value, self.num_gpus))
+        elif name == "input_res":
+            self.input_img_size = (value, value)
+            self.super_res_img_size = (value, value)
+            if self.use_super_res:
+                self.unets_output_res[1] = value
+        self.__dict__[name] = value
 
     def params(self):
         attrs_to_exclude = [
@@ -159,6 +170,7 @@ class cfg:
 
 class cfg_ssl(cfg):
     input_res = 256
+    input_img_size = (256, 256)
     unets_output_res = [256]
     eval_batch_path = "eval_batch_ssl.pt"
     use_triplet_loss = True
