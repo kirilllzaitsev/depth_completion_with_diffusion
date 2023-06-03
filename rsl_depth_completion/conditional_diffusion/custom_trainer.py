@@ -17,7 +17,7 @@ from fsspec.core import url_to_fs
 from fsspec.implementations.local import LocalFileSystem
 from imagen_pytorch.data import cycle
 from imagen_pytorch.elucidated_imagen import ElucidatedImagen
-from imagen_pytorch.imagen_pytorch import Imagen, NullUnet
+from rsl_depth_completion.conditional_diffusion.custom_imagen_pytorch import Imagen, NullUnet
 from imagen_pytorch.version import __version__
 from lion_pytorch import Lion
 from packaging import version

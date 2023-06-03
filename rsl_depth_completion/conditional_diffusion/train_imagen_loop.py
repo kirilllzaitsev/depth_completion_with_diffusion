@@ -17,8 +17,6 @@ def train_loop(
     trainer_kwargs,
     eval_batch,
 ):
-    progress_bar = tqdm(total=cfg.num_epochs, disable=False)
-    batch_size = train_dataloader.batch_size
     eval_batch_size = eval_batch["input_img"].shape[0]
 
     log_batch(
@@ -31,6 +29,7 @@ def train_loop(
     )
 
     for unet_idx in range(1, (trainer.num_unets) + 1):
+        trainer = ImagenTrainer(**trainer_kwargs)
         train_loop_single_unet(
             cfg,
             trainer,
@@ -38,9 +37,20 @@ def train_loop(
             experiment,
             out_dir,
             eval_batch,
-            progress_bar,
-            batch_size,
             unet_idx,
+            save_path=f"{out_dir}/unet-{unet_idx}-last.pt",
+        )
+    global_step = ((trainer.num_unets) + 1) * cfg.num_epochs * len(train_dataloader) + 1
+    if cfg.do_sample:
+        sample(
+            cfg,
+            trainer,
+            experiment,
+            out_dir,
+            eval_batch,
+            global_step,
+            start_at_unet_number=1,
+            stop_at_unet_number=len(trainer.unets) + 1,
         )
 
 
@@ -51,11 +61,13 @@ def train_loop_single_unet(
     experiment,
     out_dir,
     eval_batch,
-    progress_bar,
-    batch_size,
     unet_idx,
+    save_path,
 ):
     global_step = 0
+    progress_bar = tqdm(total=cfg.num_epochs, disable=False)
+    batch_size = train_dataloader.batch_size
+
     for epoch in range(cfg.num_epochs):
         progress_bar.set_description(f"Unet {unet_idx}\tEpoch {epoch}")
         running_loss = {"loss": 0, "diff_to_orig_img": 0}
@@ -119,54 +131,73 @@ def train_loop_single_unet(
         if (epoch - 1) % cfg.sampling_freq == 0 or epoch == cfg.num_epochs - 1:
             progress_bar.set_postfix(**running_loss)
             if cfg.do_save_model:
-                if cfg.do_save_last_model:
-                    save_path = f"{out_dir}/model-last.pt"
-                    trainer.save(save_path)
-                    print(f"Saved model to {save_path}")
-                else:
-                    trainer.save(f"{out_dir}/model-{epoch}.pt")
+                if not cfg.do_save_last_model:
+                    print(f"Ignoring {save_path} and saving epoch-wise to {out_dir}/model-{epoch}.pt")
+                    save_path = save_path.replace(".pt", f"-{epoch}.pt")
+                trainer.save(save_path)
+                print(f"Saved trainer of unet {unet_idx} to {save_path}")
 
             if cfg.do_sample:
-                eval_text_embeds = (
-                    eval_batch["text_embed"] if "text_embed" in eval_batch else None
-                )
-                eval_cond_images = (
-                    eval_batch["cond_img"] if "cond_img" in eval_batch else None
-                )
-
-                samples = trainer.sample(
-                    text_embeds=eval_text_embeds,
-                    cond_images=eval_cond_images,
-                    cond_scale=cfg.cond_scale,
-                    batch_size=batch_size,
-                    start_at_unet_number=unet_idx,
+                sample(
+                    cfg,
+                    trainer,
+                    experiment,
+                    out_dir,
+                    eval_batch,
+                    global_step,
+                    # start_at_unet_number=unet_idx,
                     stop_at_unet_number=unet_idx,
-                    return_all_unet_outputs=True,
                 )
-
-                if len(samples[0]) > 1:
-                    experiment.log_metric(
-                        "epoch/abs_diff_btw_samples",
-                        torch.sum(torch.abs(samples[0][0] - samples[0][1])).item(),
-                        step=global_step,
-                    )
-
-                for unet_idx_samples in range(len(samples), unet_idx):
-                    out_path = f"{out_dir}/sample-{epoch}-unet-{unet_idx_samples}.png"
-                    save_image(samples[unet_idx_samples], str(out_path), nrow=10)
-                    name = f"samples/unet_{unet_idx_samples}"
-                    unet_samples = (
-                        samples[unet_idx_samples]
-                        .cpu()
-                        .detach()
-                        .numpy()
-                        .transpose(0, 2, 3, 1)
-                    )
-                    for idx in range(len(samples[unet_idx_samples])):
-                        experiment.log_image(
-                            unet_samples[idx],
-                            f"{name}_{idx}",
-                            step=global_step,
-                        )
             if cfg.train_one_epoch:
                 break
+
+
+def sample(
+    cfg,
+    trainer: ImagenTrainer,
+    experiment,
+    out_dir,
+    batch,
+    global_step,
+    stop_at_unet_number,
+    start_at_unet_number=1,
+    start_image_or_video=None
+):
+    """
+    start_at_unet_number: must be used in context of available samples from a base unet
+    """
+    eval_text_embeds = batch["text_embed"] if "text_embed" in batch else None
+    eval_cond_images = batch["cond_img"] if "cond_img" in batch else None
+    batch_size = batch["input_img"].shape[0]
+
+    samples = trainer.sample(
+        text_embeds=eval_text_embeds,
+        cond_images=eval_cond_images,
+        cond_scale=cfg.cond_scale,
+        batch_size=batch_size,
+        start_at_unet_number=start_at_unet_number,
+        stop_at_unet_number=stop_at_unet_number,
+        start_image_or_video=start_image_or_video,
+        return_all_unet_outputs=True,
+    )
+
+    if len(samples[0]) > 1:
+        experiment.log_metric(
+            "epoch/abs_diff_btw_samples",
+            torch.sum(torch.abs(samples[0][0] - samples[0][1])).item(),
+            step=global_step,
+        )
+
+    for unet_idx_samples in range(len(samples)):
+        out_path = f"{out_dir}/sample-{global_step}-unet-{unet_idx_samples}.png"
+        save_image(samples[unet_idx_samples], str(out_path), nrow=10)
+        name = f"samples/unet_{unet_idx_samples}"
+        unet_samples = (
+            samples[unet_idx_samples].cpu().detach().numpy().transpose(0, 2, 3, 1)
+        )
+        for idx in range(len(samples[unet_idx_samples])):
+            experiment.log_image(
+                unet_samples[idx],
+                f"{name}_{idx}",
+                step=global_step,
+            )
