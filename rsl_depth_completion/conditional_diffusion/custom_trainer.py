@@ -17,10 +17,13 @@ from fsspec.core import url_to_fs
 from fsspec.implementations.local import LocalFileSystem
 from imagen_pytorch.data import cycle
 from imagen_pytorch.elucidated_imagen import ElucidatedImagen
-from rsl_depth_completion.conditional_diffusion.custom_imagen_pytorch import Imagen, NullUnet
 from imagen_pytorch.version import __version__
 from lion_pytorch import Lion
 from packaging import version
+from rsl_depth_completion.conditional_diffusion.custom_imagen_pytorch import (
+    Imagen,
+    NullUnet,
+)
 from torch import nn
 from torch.cuda.amp import GradScaler, autocast
 from torch.optim import Adam
@@ -640,16 +643,21 @@ class ImagenTrainer(nn.Module):
 
         return self.steps[unet_number - 1].item()
 
-    def print_untrained_unets(self):
+    def print_untrained_unets(self, stop_at_unet_number=None):
         print_final_error = False
 
         for ind, (steps, unet) in enumerate(
             zip(self.steps.tolist(), self.imagen.unets)
         ):
+            unet_number = ind + 1
             if steps > 0 or isinstance(unet, NullUnet):
                 continue
 
-            self.print(f"unet {ind + 1} has not been trained")
+            if exists(stop_at_unet_number) and unet_number > stop_at_unet_number:
+                break
+
+            # self.print(f"unet {unet_number} has not been trained")
+            self.print(f"ensure unet {unet_number} is trained. this trainer instance hasn't trained it")
             print_final_error = True
 
         if print_final_error:
@@ -1113,7 +1121,9 @@ class ImagenTrainer(nn.Module):
             nullcontext if kwargs.pop("use_non_ema", False) else self.use_ema_unets
         )
 
-        self.print_untrained_unets()
+        stop_at_unet_number = kwargs.get("stop_at_unet_number", None)
+
+        self.print_untrained_unets(stop_at_unet_number)
 
         if not self.is_main:
             kwargs["use_tqdm"] = False
