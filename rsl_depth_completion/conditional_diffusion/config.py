@@ -106,6 +106,7 @@ class cfg:
     sz_loss_weight = 0.4
 
     use_super_res = False
+    only_super_res = False
     super_res_img_size = (input_res, input_res)
 
     unets_output_res = [64]

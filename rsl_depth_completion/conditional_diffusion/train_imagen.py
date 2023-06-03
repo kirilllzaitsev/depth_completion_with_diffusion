@@ -1,4 +1,5 @@
 import os
+import shutil
 
 import comet_ml
 from load_data import load_data
@@ -98,6 +99,11 @@ def main():
 
     experiment.add_tag("completed")
     experiment.end()
+
+    if "debug" in cfg.other_tags:
+        shutil.rmtree(train_logdir, ignore_errors=True)
+        print(f"Deleted {train_logdir}")
+
 
 
 if __name__ == "__main__":

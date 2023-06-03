@@ -28,7 +28,12 @@ def train_loop(
         max_depth=cfg.max_depth,
     )
 
-    for unet_idx in range(1, (trainer.num_unets) + 1):
+    if cfg.only_super_res:
+        start_at_unet_number = 2
+    else:
+        start_at_unet_number = 1
+
+    for unet_idx in range(start_at_unet_number, (trainer.num_unets) + 1):
         trainer = ImagenTrainer(**trainer_kwargs)
         train_loop_single_unet(
             cfg,
@@ -49,7 +54,7 @@ def train_loop(
             out_dir,
             eval_batch,
             global_step,
-            start_at_unet_number=1,
+            start_at_unet_number=start_at_unet_number,
             stop_at_unet_number=len(trainer.unets) + 1,
         )
 
@@ -132,12 +137,20 @@ def train_loop_single_unet(
             progress_bar.set_postfix(**running_loss)
             if cfg.do_save_model:
                 if not cfg.do_save_last_model:
-                    print(f"Ignoring {save_path} and saving epoch-wise to {out_dir}/model-{epoch}.pt")
+                    print(
+                        f"Ignoring {save_path} and saving epoch-wise to {out_dir}/model-{epoch}.pt"
+                    )
                     save_path = save_path.replace(".pt", f"-{epoch}.pt")
                 trainer.save(save_path)
                 print(f"Saved trainer of unet {unet_idx} to {save_path}")
 
             if cfg.do_sample:
+                if cfg.only_super_res:
+                    start_image_or_video = torch.randn_like(eval_batch["input_img"])
+                    start_at_unet_number = unet_idx
+                else:
+                    start_image_or_video = None
+                    start_at_unet_number = 1
                 sample(
                     cfg,
                     trainer,
@@ -145,7 +158,8 @@ def train_loop_single_unet(
                     out_dir,
                     eval_batch,
                     global_step,
-                    # start_at_unet_number=unet_idx,
+                    start_at_unet_number=start_at_unet_number,
+                    start_image_or_video=start_image_or_video,
                     stop_at_unet_number=unet_idx,
                 )
             if cfg.train_one_epoch:
@@ -161,7 +175,7 @@ def sample(
     global_step,
     stop_at_unet_number,
     start_at_unet_number=1,
-    start_image_or_video=None
+    start_image_or_video=None,
 ):
     """
     start_at_unet_number: must be used in context of available samples from a base unet

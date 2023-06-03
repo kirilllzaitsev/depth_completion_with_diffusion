@@ -91,7 +91,6 @@ def setup_train_pipeline(logdir_name="standalone_trainer", use_ssl=True):
     logdir = Path("./logs") if not cfg.is_cluster else Path(cfg.cluster_logdir)
     logdir = logdir / logdir_name
 
-    # shutil.rmtree(logdir, ignore_errors=True)
     exp_dir = f"{len(os.listdir(logdir)) + 1:03d}" if os.path.isdir(logdir) else "001"
     exp_dir += f"_{cfg.exp_targets=}"
     train_logdir = logdir / exp_dir
