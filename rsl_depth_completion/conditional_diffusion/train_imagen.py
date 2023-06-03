@@ -18,7 +18,9 @@ from rsl_depth_completion.conditional_diffusion.utils import log_params_to_exp
 def main():
     logdir_name = "debug"
     # logdir_name = "standalone_trainer"
-    cfg, train_logdir = setup_train_pipeline(logdir_name)
+    # use_ssl=True
+    use_ssl = False
+    cfg, train_logdir = setup_train_pipeline(logdir_name, use_ssl=use_ssl)
     # cfg.disabled = True
 
     ds_kwargs = get_ds_kwargs(cfg)
@@ -69,10 +71,14 @@ def main():
         accelerate_log_with="comet_ml",
         accelerate_project_dir="logs",
     )
-    if cfg.use_triplet_loss:
-        from rsl_depth_completion.conditional_diffusion.custom_trainer_ssl import ImagenTrainer
+    if use_ssl:
+        from rsl_depth_completion.conditional_diffusion.custom_trainer_ssl import (
+            ImagenTrainer,
+        )
     else:
-        from rsl_depth_completion.conditional_diffusion.custom_trainer import ImagenTrainer
+        from rsl_depth_completion.conditional_diffusion.custom_trainer import (
+            ImagenTrainer,
+        )
 
     trainer = ImagenTrainer(**trainer_kwargs)
 
