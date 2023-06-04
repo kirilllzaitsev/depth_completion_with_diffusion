@@ -221,6 +221,7 @@ def split_args_and_kwargs(*args, split_size=None, **kwargs):
     batch_size = len(first_tensor)
     split_size = default(split_size, batch_size)
     num_chunks = ceil(batch_size / split_size)
+    num_chunks = max(num_chunks, 1)
 
     dict_len = len(kwargs)
     dict_keys = kwargs.keys()
