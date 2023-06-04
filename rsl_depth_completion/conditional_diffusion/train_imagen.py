@@ -1,7 +1,6 @@
 import os
 import shutil
 
-import comet_ml
 from load_data import load_data
 from model import init_model
 from rsl_depth_completion.conditional_diffusion.pipeline_utils import (
@@ -10,9 +9,6 @@ from rsl_depth_completion.conditional_diffusion.pipeline_utils import (
     setup_train_pipeline,
 )
 from rsl_depth_completion.conditional_diffusion.train_imagen_loop import train_loop
-from rsl_depth_completion.conditional_diffusion.train_imagen_ssl_loop import (
-    train_loop as train_loop_ssl,
-)
 from rsl_depth_completion.conditional_diffusion.utils import log_params_to_exp
 
 
@@ -75,30 +71,18 @@ def main():
         accelerate_log_with="comet_ml",
         accelerate_project_dir="logs",
     )
-    if use_ssl:
-        from rsl_depth_completion.conditional_diffusion.custom_trainer_ssl import (
-            ImagenTrainer,
-        )
-    else:
-        from rsl_depth_completion.conditional_diffusion.custom_trainer import (
-            ImagenTrainer,
-        )
 
-    trainer = ImagenTrainer(**trainer_kwargs)
 
     train_loop_kwargs = dict(
         cfg=cfg,
-        trainer=trainer,
         train_dataloader=train_dataloader,
         out_dir=train_logdir,
         experiment=experiment,
         trainer_kwargs=trainer_kwargs,
         eval_batch=ds.eval_batch,
+        use_ssl=use_ssl,
     )
-    if cfg.use_triplet_loss:
-        train_loop_ssl(**train_loop_kwargs)
-    else:
-        train_loop(**train_loop_kwargs)
+    train_loop(**train_loop_kwargs)
 
     experiment.add_tag("completed")
     experiment.end()

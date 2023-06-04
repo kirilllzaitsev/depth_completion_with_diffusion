@@ -1,21 +1,27 @@
 import os
+import typing as t
 
 import comet_ml
 import torch
 from rsl_depth_completion.conditional_diffusion.custom_trainer import ImagenTrainer
+from rsl_depth_completion.conditional_diffusion.custom_trainer_ssl import (
+    ImagenTrainer as ImagenTrainerSSL,
+)
 from rsl_depth_completion.conditional_diffusion.utils import log_batch
 from torchvision.utils import save_image
 from tqdm import tqdm
 
+ImagenTrainerType = t.Union[ImagenTrainer, ImagenTrainerSSL]
+
 
 def train_loop(
     cfg,
-    trainer: ImagenTrainer,
     train_dataloader,
     experiment: comet_ml.Experiment,
     out_dir,
     trainer_kwargs,
     eval_batch,
+    use_ssl=False,
 ):
     eval_batch_size = eval_batch["input_img"].shape[0]
 
@@ -33,13 +39,14 @@ def train_loop(
     else:
         start_at_unet_number = 1
 
+    num_unets = len(trainer_kwargs["imagen"].unets)
     if cfg.only_base:
         stop_at_unet_number = 1
     else:
-        stop_at_unet_number = trainer.num_unets
+        stop_at_unet_number = num_unets + 1
 
-    for unet_idx in range(start_at_unet_number, stop_at_unet_number + 1):
-        trainer = ImagenTrainer(**trainer_kwargs)
+    for unet_idx in range(start_at_unet_number, stop_at_unet_number):
+        trainer = init_trainer(trainer_kwargs, use_ssl)
         train_loop_single_unet(
             cfg,
             trainer,
@@ -61,13 +68,21 @@ def train_loop(
                 eval_batch,
                 global_step,
                 start_at_unet_number=start_at_unet_number,
-                stop_at_unet_number=len(trainer.unets) + 1,
+                stop_at_unet_number=num_unets + 1,
             )
+
+
+def init_trainer(trainer_kwargs, use_ssl):
+    if use_ssl:
+        trainer = ImagenTrainerSSL(**trainer_kwargs)
+    else:
+        trainer = ImagenTrainer(**trainer_kwargs)
+    return trainer
 
 
 def train_loop_single_unet(
     cfg,
-    trainer: ImagenTrainer,
+    trainer: ImagenTrainerType,
     train_dataloader,
     experiment,
     out_dir,
@@ -86,7 +101,12 @@ def train_loop_single_unet(
             batch_scale_factor = batch_size // eval_batch["input_img"].shape[0]
             batch_scale_factor = max(1, batch_scale_factor)
             data_gen = enumerate(
-                [{k: torch.repeat_interleave(v, batch_scale_factor, dim=0) for k, v in eval_batch.items()}]
+                [
+                    {
+                        k: torch.repeat_interleave(v, batch_scale_factor, dim=0)
+                        for k, v in eval_batch.items()
+                    }
+                ]
                 * len(train_dataloader)
             )
         else:
@@ -105,7 +125,7 @@ def train_loop_single_unet(
             validity_map_depth = torch.where(
                 batch["sdm"] > 0, torch.ones_like(batch["sdm"]), batch["sdm"]
             ).bool()
-            loss = trainer(
+            forwards_kwargs = dict(
                 images=images,
                 text_embeds=text_embeds,
                 cond_images=cond_images,
@@ -115,6 +135,23 @@ def train_loop_single_unet(
                 if unet_idx == (trainer.num_unets) and cfg.use_validity_map_depth
                 else None,
             )
+            if cfg.use_triplet_loss:
+                adj_imgs = batch["adj_imgs"]
+                ssl_kwargs = dict(
+                    image0=batch["rgb"],
+                    image1=adj_imgs[0],
+                    image2=adj_imgs[1],
+                    filtered_sparse_depth0=batch["sdm"],
+                    filtered_validity_map_depth0=validity_map_depth,
+                    intrinsics=batch["intrinsics"],
+                )
+                forwards_kwargs.update(ssl_kwargs)
+
+            if cfg.use_triplet_loss:
+                loss, output_depth = trainer(**forwards_kwargs)
+            else:
+                loss = trainer(**forwards_kwargs)
+
             trainer.update(unet_number=unet_idx)
 
             running_loss["loss"] += loss
@@ -155,7 +192,7 @@ def train_loop_single_unet(
 
             if cfg.do_sample:
                 if cfg.only_super_res:
-                    start_image_or_video = torch.randn_like(eval_batch["input_img"])
+                    start_image_or_video = eval_batch["lowres_img"]
                     start_at_unet_number = unet_idx
                 else:
                     start_image_or_video = None
@@ -177,7 +214,7 @@ def train_loop_single_unet(
 
 def sample(
     cfg,
-    trainer: ImagenTrainer,
+    trainer: ImagenTrainerType,
     experiment,
     out_dir,
     batch,
@@ -214,7 +251,7 @@ def sample(
     for unet_idx_samples in range(len(samples)):
         out_path = f"{out_dir}/sample-{global_step}-unet-{unet_idx_samples}.png"
         save_image(samples[unet_idx_samples], str(out_path), nrow=10)
-        name = f"samples/unet_{unet_idx_samples}"
+        name = f"samples/unet_{unet_idx_samples+start_at_unet_number-1}"
         unet_samples = (
             samples[unet_idx_samples].cpu().detach().numpy().transpose(0, 2, 3, 1)
         )
