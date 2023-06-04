@@ -1,5 +1,6 @@
-
+import matplotlib.pyplot as plt
 import numpy as np
+import torch
 import torchvision as tv
 
 
@@ -53,3 +54,27 @@ def fix_channel_not_first(x):
         if x.shape[1] > x.shape[-1]:
             return np.transpose(x, (0, 3, 1, 2))
     return x
+
+
+def plot_sr_samples(samples, eval_batch, kbnet_preds=None):
+    is_kbnet_available = kbnet_preds is not None
+    num_cols = 3 if is_kbnet_available is None else 4
+    if is_kbnet_available is None:
+        kbnet_preds = [None] * len(samples)
+    fig, axs = plt.subplots(2, num_cols, figsize=(6, 5))
+    for i, (sample, lowres, input_img, kbnet_pred) in enumerate(
+        zip(samples, eval_batch["lowres_img"], eval_batch["input_img"], kbnet_preds)
+    ):
+        axs[i, 0].imshow(lowres.permute(1, 2, 0).cpu().numpy())
+        axs[i, 1].imshow(input_img.permute(1, 2, 0).cpu().numpy())
+        axs[i, 2].imshow(sample.permute(1, 2, 0).cpu().numpy())
+        if kbnet_pred is not None:
+            axs[i, 3].imshow(kbnet_pred.permute(1, 2, 0).cpu().detach().numpy())
+    axs[0, 0].set_title("lowres")
+    axs[0, 1].set_title("cond_img")
+    axs[0, 2].set_title("sample")
+    if is_kbnet_available is not None:
+        axs[0, 3].set_title("kbnet_pred")
+
+    for ax in axs.flatten():
+        ax.axis("off")

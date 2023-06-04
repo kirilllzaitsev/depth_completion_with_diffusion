@@ -224,7 +224,7 @@ def sample(
     start_image_or_video=None,
 ):
     """
-    start_at_unet_number: must be used in context of available samples from a base unet
+    start_at_unet_number: must be used when base unet is trained and provides low resolution conditioning, i.e., start_image_or_video
     """
     eval_text_embeds = batch["text_embed"] if "text_embed" in batch else None
     eval_cond_images = batch["cond_img"] if "cond_img" in batch else None
