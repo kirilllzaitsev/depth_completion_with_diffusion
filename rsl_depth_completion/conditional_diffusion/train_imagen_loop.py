@@ -83,12 +83,15 @@ def train_loop_single_unet(
         progress_bar.set_description(f"Unet {unet_idx}\tEpoch {epoch}")
         running_loss = {"loss": 0, "diff_to_orig_img": 0}
         if cfg.do_overfit:
-            data_gen = enumerate(train_dataloader)
+            batch_scale_factor = batch_size // eval_batch["input_img"].shape[0]
+            batch_scale_factor = max(1, batch_scale_factor)
+            data_gen = enumerate(
+                [{k: torch.repeat_interleave(v, batch_scale_factor, dim=0) for k, v in eval_batch.items()}]
+                * len(train_dataloader)
+            )
         else:
             data_gen = tqdm(enumerate(train_dataloader), total=len(train_dataloader))
         for batch_idx, batch in data_gen:
-            if cfg.do_overfit:
-                batch = eval_batch
             images = batch["input_img"]
             if "text_embed" in batch:
                 text_embeds = batch["text_embed"]
