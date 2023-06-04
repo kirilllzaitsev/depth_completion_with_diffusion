@@ -1,5 +1,4 @@
 from rsl_depth_completion.conditional_diffusion.config import cfg
-from rsl_depth_completion.conditional_diffusion.custom_imagen_pytorch import NullUnet
 from rsl_depth_completion.conditional_diffusion.utils import log_params_to_exp
 
 
@@ -38,11 +37,13 @@ def init_model(experiment, ds_kwargs, cfg: cfg):
         from rsl_depth_completion.conditional_diffusion.custom_imagen_pytorch_ssl import (
             Imagen,
             Unet,
+            NullUnet
         )
     else:
         from rsl_depth_completion.conditional_diffusion.custom_imagen_pytorch import (
             Imagen,
             Unet,
+            NullUnet
         )
 
     if cfg.only_super_res:
@@ -58,9 +59,9 @@ def init_model(experiment, ds_kwargs, cfg: cfg):
 
     if cfg.only_base:
         image_sizes = [image_sizes[0]]
-        
+
     if cfg.use_super_res:
-        unet_super_res = Unet(
+        unet_sr_params = dict(
             dim=cfg.sr_dim,
             dim_mults=[1, 1, 2, 2, 4, 4],
             channels=1,
@@ -76,6 +77,7 @@ def init_model(experiment, ds_kwargs, cfg: cfg):
             cond_dim=None,
             cond_images_channels=cond_image_channels(ds_kwargs),
         )
+        unet_super_res = Unet(**unet_sr_params)
 
         unets.append(unet_super_res)
 
@@ -102,6 +104,21 @@ def init_model(experiment, ds_kwargs, cfg: cfg):
     )
     log_params_to_exp(experiment, unet_base_params, "unet_base_params")
     log_params_to_exp(experiment, imagen_params, "imagen_params")
+    with open("model_params.json", "w") as f:
+        import json
+
+        params = {
+            "imagen_params": {**imagen_params},
+            "unet_base_params": {**unet_base_params},
+        }
+        if cfg.use_super_res:
+            params["unet_sr_params"] = {**unet_sr_params}
+
+        json.dump(
+            params,
+            f,
+        )
+    experiment.log_asset("model_params.json")
 
     return unets, imagen
 
