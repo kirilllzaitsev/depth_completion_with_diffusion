@@ -148,7 +148,7 @@ class cfg:
             self.super_res_img_size = (value, value)
             if self.use_super_res:
                 self.unets_output_res[1] = value
-        elif name == "only_super_res":
+        elif name == "only_super_res" and value:
             self.use_super_res = True
             self.only_base = False
         self.__dict__[name] = value

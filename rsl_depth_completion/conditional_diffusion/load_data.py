@@ -91,6 +91,8 @@ def load_data(cfg, ds_name="mnist", do_overfit=False, **ds_kwargs):
         "batch_size": cfg.batch_size,
         "num_workers": cfg.num_workers,
         "drop_last": True,
+        "pin_memory": True,
+        "prefetch_factor": 2
     }
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset, **dl_opts, shuffle=False if do_overfit else True
