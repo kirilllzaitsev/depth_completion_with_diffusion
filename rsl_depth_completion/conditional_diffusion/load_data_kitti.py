@@ -8,7 +8,7 @@ import torch
 import yaml
 from rsl_depth_completion.conditional_diffusion import utils as data_utils
 from rsl_depth_completion.conditional_diffusion.config import cfg
-from rsl_depth_completion.conditional_diffusion.img_utils import center_crop
+from rsl_depth_completion.conditional_diffusion.img_utils import center_crop, resize
 from rsl_depth_completion.conditional_diffusion.load_data_base import BaseDMDataset
 from rsl_depth_completion.data.kitti.kitti_dataset import CustomKittiDCDataset
 
@@ -21,7 +21,9 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
         **kwargs,
     ):
         self.kitti_kwargs = self.load_base_ds(cfg)
+        self.do_crop = cfg.do_crop
         self.input_img_size = cfg.input_img_size
+        self.max_input_img_size = cfg.max_input_img_size
 
         CustomKittiDCDataset.__init__(self, *args, **kwargs, **self.kitti_kwargs)
 
@@ -36,13 +38,22 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
                 }
             else:
                 print(f"{eval_batch_path} does not contain {cfg.input_res}")
+
+        assert len(cfg.unets_output_res) == 2
+        base_unet_res = cfg.unets_output_res[0]
+        target_lowres_img_size = None
+        if cfg.input_res > base_unet_res:
+            target_lowres_img_size = (base_unet_res, base_unet_res)
+
         BaseDMDataset.__init__(
             self,
+            cfg=cfg,
             *args,
             eval_batch=eval_batch,
             max_depth=cfg.max_depth,
             cond_img_sdm_interpolation_mode=cfg.cond_img_sdm_interpolation_mode,
             input_img_sdm_interpolation_mode=cfg.input_img_sdm_interpolation_mode,
+            target_lowres_img_size=target_lowres_img_size,
             **kwargs,
             **self.kitti_kwargs,
         )
@@ -90,12 +101,12 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
     def __getitem__(self, idx):
         items = super().__getitem__(idx)
         if self.do_crop:
-            items["d"] = center_crop(items["d"], crop_size=self.input_img_size)
-            items["img"] = center_crop(items["img"], crop_size=self.input_img_size)
+            items["d"] = self.prep_img(items["d"])
+            items["img"] = self.prep_img(items["img"])
             if "adj_imgs" in items:
                 adj_imgs = []
                 for i, img in enumerate(items["adj_imgs"]):
-                    cropped_adj_img = center_crop(img, crop_size=self.input_img_size)
+                    cropped_adj_img = self.prep_img(img)
                     adj_imgs.append(cropped_adj_img)
                 items["adj_imgs"] = torch.stack(adj_imgs, dim=0).float()
         sparse_dm = items["d"]
@@ -117,3 +128,7 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
         sample.update(extension)
 
         return sample
+
+    def prep_img(self, x):
+        x = center_crop(x, crop_size=self.max_input_img_size)
+        return x

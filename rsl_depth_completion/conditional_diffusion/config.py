@@ -102,6 +102,7 @@ class cfg:
     cond_scale = 8.0
     input_res = 64
     input_img_size = (input_res, input_res)
+    max_input_img_size = (256, 256)
     memory_efficient = False
     num_resnet_blocks = 2
     auto_normalize_img = True
@@ -131,6 +132,7 @@ class cfg:
     eval_batch_path = "eval_batch.pt"
 
     max_depth = 80
+    do_crop = True
 
     seed = 100
 
@@ -180,7 +182,7 @@ class cfg:
 class cfg_ssl(cfg):
     input_res = 256
     input_img_size = (256, 256)
-    unets_output_res = [256]
+    unets_output_res = [64, 256]
     eval_batch_path = "eval_batch_ssl.pt"
     use_triplet_loss = True
 
