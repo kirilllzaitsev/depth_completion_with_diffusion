@@ -17,12 +17,15 @@ from rsl_depth_completion.conditional_diffusion.utils import log_params_to_exp
 
 
 def main():
-    logdir_name = "debug"
-    # logdir_name = "standalone_trainer"
-    # use_ssl=True
-    use_ssl = False
-    cfg, train_logdir = setup_train_pipeline(logdir_name, use_ssl=use_ssl)
-    # cfg.disabled = True
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--use-ssl", action="store_true")
+    parser.add_argument("--logdir-name", default="standalone_trainer")
+    args, _ = parser.parse_known_args()
+    use_ssl = args.use_ssl
+
+    cfg, train_logdir = setup_train_pipeline(args.logdir_name, use_ssl=use_ssl)
 
     ds_kwargs = get_ds_kwargs(cfg)
 
@@ -103,7 +106,6 @@ def main():
     if "debug" in cfg.other_tags:
         shutil.rmtree(train_logdir, ignore_errors=True)
         print(f"Deleted {train_logdir}")
-
 
 
 if __name__ == "__main__":
