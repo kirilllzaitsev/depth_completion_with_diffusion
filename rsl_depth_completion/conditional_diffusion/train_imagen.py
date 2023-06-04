@@ -41,7 +41,7 @@ def main():
         experiment.log_code(src_file)
 
     num_samples = len(train_dataloader) * train_dataloader.batch_size
-    unets, model = init_model(experiment, ds_kwargs, cfg)
+    unets, model = init_model(experiment, ds_kwargs, cfg, str(train_logdir))
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
     log_params_to_exp(experiment, {**ds_kwargs, "num_samples": num_samples}, "dataset")
@@ -71,7 +71,6 @@ def main():
         accelerate_log_with="comet_ml",
         accelerate_project_dir="logs",
     )
-
 
     train_loop_kwargs = dict(
         cfg=cfg,

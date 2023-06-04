@@ -2,7 +2,7 @@ from rsl_depth_completion.conditional_diffusion.config import cfg
 from rsl_depth_completion.conditional_diffusion.utils import log_params_to_exp
 
 
-def init_model(experiment, ds_kwargs, cfg: cfg):
+def init_model(experiment, ds_kwargs, cfg: cfg, save_dir: str):
     # unet_base_params = dict(
     #     dim=cfg.dim,
     #     dim_mults=[1, 1, 2, 2, 4, 4],
@@ -104,7 +104,7 @@ def init_model(experiment, ds_kwargs, cfg: cfg):
     )
     log_params_to_exp(experiment, unet_base_params, "unet_base_params")
     log_params_to_exp(experiment, imagen_params, "imagen_params")
-    with open("model_params.json", "w") as f:
+    with open(f"{save_dir}/model_params.json", "w") as f:
         import json
 
         params = {
