@@ -158,8 +158,8 @@ class BaseDMDataset(torch.utils.data.Dataset):
                 )
                 extension["text_embed"] = sdm_embed.detach()
         if self.include_sdm_and_rgb_in_sample:
-            extension["sdm"] = (sparse_dm).detach()
-            extension["rgb"] = (rgb_image).detach()
+            extension["rgb"] = (rgb_image).detach() / 255
+            extension["sdm"] = (sparse_dm).detach() * self.max_depth
 
         if self.target_lowres_img_size is not None:
             extension["lowres_img"] = self.add_lowres_img(
