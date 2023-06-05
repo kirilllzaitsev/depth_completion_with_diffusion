@@ -180,11 +180,11 @@ def log_image_comet(step, batch_size, experiment, prefix, k, v):
         )
 
 
-def get_pose_model(device):
+def get_pose_model(device, encoder_type="resnet18"):
     from kbnet.posenet_model import PoseNetModel
 
     pose_model = PoseNetModel(
-        encoder_type="resnet18",
+        encoder_type=encoder_type,
         rotation_parameterization="axis",
         weight_initializer="xavier_normal",
         activation_func="relu",

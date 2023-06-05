@@ -5,15 +5,20 @@ import torchvision as tv
 
 
 def center_crop(img, crop_size, channels_last=False):
+    has_batch_dim = len(img.shape) == 4
     if channels_last:
-        h, w = img.shape[:2]
+        h, w = img.shape[1:3] if has_batch_dim else img.shape[:2]
     else:
-        h, w = img.shape[1:3]
+        h, w = img.shape[2:4] if has_batch_dim else img.shape[1:]
     th, tw = crop_size
     i = int(round((h - th) / 2.0))
     j = int(round((w - tw) / 2.0))
     if channels_last:
+        if has_batch_dim:
+            return img[:, i : i + th, j : j + tw, :]
         return img[i : i + th, j : j + tw, :]
+    if has_batch_dim:
+        return img[:, :, i : i + th, j : j + tw]
     return img[:, i : i + th, j : j + tw]
 
 
