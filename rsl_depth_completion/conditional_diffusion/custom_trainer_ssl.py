@@ -1186,6 +1186,7 @@ class ImagenTrainer(nn.Module):
                     unet_number=unet_number,
                     **chunked_kwargs,
                 )
+                output_depth0 = torch.sigmoid(output_depth)
                 output_depth0 = self.min_predict_depth / (
                     output_depth0 + self.min_predict_depth / self.max_predict_depth
                 )
