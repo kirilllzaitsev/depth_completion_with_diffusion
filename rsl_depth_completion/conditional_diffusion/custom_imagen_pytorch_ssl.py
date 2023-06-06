@@ -240,7 +240,7 @@ def prob_mask_like(shape, prob, device):
 
 @torch.jit.script
 def beta_linear_log_snr(t):
-    return -torch.log(expm1(1e-4 + 10 * (t ** 2)))
+    return -torch.log(expm1(1e-4 + 10 * (t**2)))
 
 
 @torch.jit.script
@@ -303,7 +303,7 @@ class GaussianDiffusionContinuousTimes(nn.Module):
         posterior_mean = alpha_next * (x_t * (1 - c) / alpha + c * x_start)
 
         # following (eq. 33)
-        posterior_variance = (sigma_next ** 2) * c
+        posterior_variance = (sigma_next**2) * c
         posterior_log_variance_clipped = log(posterior_variance, eps=1e-20)
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
 
@@ -931,7 +931,7 @@ class LinearAttention(nn.Module):
         self, dim, dim_head=32, heads=8, dropout=0.05, context_dim=None, **kwargs
     ):
         super().__init__()
-        self.scale = dim_head ** -0.5
+        self.scale = dim_head**-0.5
         self.heads = heads
         inner_dim = dim_head * heads
         self.norm = ChanLayerNorm(dim)
@@ -1129,7 +1129,7 @@ class CrossEmbedLayer(nn.Module):
         num_scales = len(kernel_sizes)
 
         # calculate the dimension at each scale
-        dim_scales = [int(dim_out / (2 ** i)) for i in range(1, num_scales)]
+        dim_scales = [int(dim_out / (2**i)) for i in range(1, num_scales)]
         dim_scales = [*dim_scales, dim_out - sum(dim_scales)]
 
         self.convs = nn.ModuleList([])
@@ -1437,7 +1437,7 @@ class Unet(nn.Module):
 
         # scale for resnet skip connections
 
-        self.skip_connect_scale = 1.0 if not scale_skip_connection else (2 ** -0.5)
+        self.skip_connect_scale = 1.0 if not scale_skip_connection else (2**-0.5)
 
         # layers
 
@@ -3097,6 +3097,26 @@ class Imagen(nn.Module):
             loss_weight = maybe_clipped_snr / (snr + 1)
 
         losses = losses * loss_weight
+
+        do_plot_imgs = False
+        if do_plot_imgs:
+            import matplotlib.pyplot as plt
+
+            fig, axs = plt.subplots(1, 5, figsize=(20, 5))
+            axs[0].imshow(x_start[0].detach().cpu().numpy().transpose(1, 2, 0))
+            axs[1].imshow(x_noisy[0].detach().cpu().numpy().transpose(1, 2, 0))
+            axs[3].imshow(pred[0].detach().cpu().numpy().transpose(1, 2, 0))
+            axs[4].imshow(x_denoised[0].detach().cpu().numpy().transpose(1, 2, 0))
+            axs[2].imshow(noise[0].detach().cpu().numpy().transpose(1, 2, 0))
+            axs[0].set_title("x_start")
+            axs[1].set_title("x_noisy")
+            axs[3].set_title("pred_noise")
+            axs[4].set_title("x_denoised")
+            axs[2].set_title("orig_noise")
+            save_path = "/tmp/train_iter_sample.png"
+            plt.savefig(save_path)
+            print(f"saved imgs from imagen.forward to {save_path}")
+
         return losses.mean(), x_denoised
         # return {
         #     pred_objective: losses.mean(),
