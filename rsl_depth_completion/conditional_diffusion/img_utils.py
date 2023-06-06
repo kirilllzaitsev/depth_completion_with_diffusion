@@ -75,7 +75,7 @@ def plot_sr_samples(samples, eval_batch, kbnet_preds=None):
         axs[i, 2].imshow(sample.permute(1, 2, 0).cpu().numpy())
         if kbnet_pred is not None:
             axs[i, 3].imshow(kbnet_pred.permute(1, 2, 0).cpu().detach().numpy())
-    axs[0, 0].set_title("lowres")
+    axs[0, 0].set_title("lowres_condition")
     axs[0, 1].set_title("cond_img")
     axs[0, 2].set_title("sample")
     if is_kbnet_available is not None:
