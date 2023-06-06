@@ -1232,7 +1232,6 @@ class ImagenTrainer(nn.Module):
 
             if self.training:
                 self.accelerator.backward(loss)
-                self.pose_optimizer.step()
 
         output_depths = torch.cat(output_depths, dim=0)
         assert len(output_depths.shape) == 4
