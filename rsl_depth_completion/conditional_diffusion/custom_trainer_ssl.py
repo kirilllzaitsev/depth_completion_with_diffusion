@@ -1,6 +1,7 @@
 import copy
 import os
 import time
+from collections import defaultdict
 from collections.abc import Iterable
 from contextlib import contextmanager, nullcontext
 from functools import partial, wraps
@@ -25,6 +26,9 @@ from kbnet.kbnet_model import KBNetModel
 from lion_pytorch import Lion
 from packaging import version
 from rsl_depth_completion.conditional_diffusion.utils import get_pose_model
+from rsl_depth_completion.models.benchmarking.calibrated_backprojection_network.kbnet import (
+    eval_utils,
+)
 from torch import nn
 from torch.cuda.amp import GradScaler, autocast
 from torch.optim import Adam
@@ -933,7 +937,6 @@ class ImagenTrainer(nn.Module):
 
         self.steps.copy_(loaded_obj["steps"])
 
-
         for ind in range(0, self.num_unets):
             scaler_key = f"scaler{ind}"
             optimizer_key = f"optim{ind}"
@@ -1155,7 +1158,13 @@ class ImagenTrainer(nn.Module):
 
         total_loss = 0.0
         output_depths = []
+        self.min_predict_depth = 1.5
+        self.max_predict_depth = 100
+        rec_losses = kwargs.pop("rec_losses", defaultdict(lambda: list()))
+        losses = kwargs.pop("losses", defaultdict(lambda: list()))
 
+        self.pose_optimizer.zero_grad()
+        
         for chunk_size_frac, (chunked_args, chunked_kwargs) in split_args_and_kwargs(
             *args, split_size=max_batch_size, **kwargs
         ):
@@ -1177,7 +1186,9 @@ class ImagenTrainer(nn.Module):
                     unet_number=unet_number,
                     **chunked_kwargs,
                 )
-                output_depth0 = output_depth
+                output_depth0 = self.min_predict_depth / (
+                    output_depth0 + self.min_predict_depth / self.max_predict_depth
+                )
 
                 # Compute loss function
                 triplet_loss, loss_info = KBNetModel.compute_loss(
@@ -1192,15 +1203,35 @@ class ImagenTrainer(nn.Module):
                     pose02=pose02,
                 )
 
-                loss = imagen_loss + triplet_loss
+                loss = triplet_loss
+                # loss = 0.3*imagen_loss + 0.7*triplet_loss
 
                 loss = loss * chunk_size_frac
 
-            output_depths.append(output_depth)
+                image01 = loss_info.get("image01")
+                image02 = loss_info.get("image02")
+                image01_error_summary = torch.sum(
+                    torch.mean(torch.abs(image0 - image01), dim=1, keepdim=False)
+                ).item()
+                image02_error_summary = torch.sum(
+                    torch.mean(torch.abs(image0 - image02), dim=1, keepdim=False)
+                ).item()
+                # print("image01 reconstruction L1 loss: ", image01_error_summary)
+                # print("image02 reconstruction L1 loss: ", image02_error_summary)
+                rec_losses["image_01_loss"].append(image01_error_summary)
+                rec_losses["image_02_loss"].append(image02_error_summary)
+
+                loss_keys = [k for k in loss_info.keys() if "loss" in k]
+                for loss_key in loss_keys:
+                    # print(f"{loss_key}: {loss_info[loss_key]}")
+                    losses[loss_key].append(loss_info[loss_key].item())
+
+            output_depths.append(output_depth0)
             total_loss += loss.item()
 
             if self.training:
                 self.accelerator.backward(loss)
+                self.pose_optimizer.step()
 
         output_depths = torch.cat(output_depths, dim=0)
         assert len(output_depths.shape) == 4
