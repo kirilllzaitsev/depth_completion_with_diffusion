@@ -273,7 +273,9 @@ class GaussianDiffusionContinuousTimes(nn.Module):
         )
 
     def sample_random_times(self, batch_size, *, device):
-        return torch.zeros((batch_size,), device=device).float().uniform_(0, 1)
+        # return torch.zeros((batch_size,), device=device).float().uniform_(0, 0.1)
+        return torch.zeros((batch_size,), device=device).float()
+        # return torch.zeros((batch_size,), device=device).float().uniform_(0, 1)
 
     def get_condition(self, times):
         return maybe(self.log_snr)(times)
@@ -3206,8 +3208,8 @@ class Imagen(nn.Module):
         )
 
         times = noise_scheduler.sample_random_times(b, device=device)
-        if kwargs.pop("use_max_times", False):
-            times = torch.ones_like(times).to(device)
+        # if kwargs.pop("use_max_times", False):
+        #     times = torch.ones_like(times).to(device)
 
         if exists(texts) and not exists(text_embeds) and not self.unconditional:
             assert all([*map(len, texts)]), "text cannot be empty"
