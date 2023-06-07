@@ -3206,6 +3206,8 @@ class Imagen(nn.Module):
         )
 
         times = noise_scheduler.sample_random_times(b, device=device)
+        if kwargs.pop("use_max_times", False):
+            times = torch.ones_like(times).to(device)
 
         if exists(texts) and not exists(text_embeds) and not self.unconditional:
             assert all([*map(len, texts)]), "text cannot be empty"
