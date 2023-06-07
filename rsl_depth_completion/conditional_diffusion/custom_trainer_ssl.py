@@ -1089,7 +1089,7 @@ class ImagenTrainer(nn.Module):
 
         optimizer.step()
         # TODO: ensure the grad flow is correct
-        self.pose_optimizer.step()
+        # self.pose_optimizer.step()
 
         optimizer.zero_grad()
         self.pose_optimizer.zero_grad()
@@ -1164,7 +1164,7 @@ class ImagenTrainer(nn.Module):
         losses = kwargs.pop("losses", defaultdict(lambda: list()))
 
         self.pose_optimizer.zero_grad()
-        
+
         for chunk_size_frac, (chunked_args, chunked_kwargs) in split_args_and_kwargs(
             *args, split_size=max_batch_size, **kwargs
         ):
@@ -1186,9 +1186,9 @@ class ImagenTrainer(nn.Module):
                     unet_number=unet_number,
                     **chunked_kwargs,
                 )
-                output_depth0 = torch.sigmoid(output_depth)
+                output_depth01 = torch.sigmoid(output_depth)
                 output_depth0 = self.min_predict_depth / (
-                    output_depth0 + self.min_predict_depth / self.max_predict_depth
+                    output_depth01 + self.min_predict_depth / self.max_predict_depth
                 )
 
                 # Compute loss function
@@ -1204,13 +1204,16 @@ class ImagenTrainer(nn.Module):
                     pose02=pose02,
                 )
 
-                loss = triplet_loss
-                # loss = 0.3*imagen_loss + 0.7*triplet_loss
+                # loss = triplet_loss
+                # loss = imagen_loss
+                # imagen_loss_prep = torch.log(imagen_loss) if 1 > imagen_loss > 0 else imagen_loss
+                imagen_loss_prep = torch.log(imagen_loss)
+                loss = imagen_loss_prep + triplet_loss
 
                 loss = loss * chunk_size_frac
 
-                image01 = loss_info.get("image01")
-                image02 = loss_info.get("image02")
+                image01 = loss_info["image01"].detach()
+                image02 = loss_info["image02"].detach()
                 image01_error_summary = torch.sum(
                     torch.mean(torch.abs(image0 - image01), dim=1, keepdim=False)
                 ).item()
@@ -1225,9 +1228,13 @@ class ImagenTrainer(nn.Module):
                 loss_keys = [k for k in loss_info.keys() if "loss" in k]
                 for loss_key in loss_keys:
                     # print(f"{loss_key}: {loss_info[loss_key]}")
-                    losses[loss_key].append(loss_info[loss_key].item())
+                    dst_loss_key = loss_key
+                    if loss_key == "loss":
+                        dst_loss_key = "triplet_loss"
+                    losses[dst_loss_key].append(loss_info[loss_key].item())
+                losses["imagen_loss"].append(imagen_loss_prep.item())
 
-            output_depths.append(output_depth0)
+            output_depths.append(output_depth0.detach().cpu())
             total_loss += loss.item()
 
             if self.training:
