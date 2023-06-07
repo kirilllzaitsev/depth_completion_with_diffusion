@@ -1,4 +1,5 @@
 import os
+import pickle
 import typing as t
 
 import comet_ml
@@ -41,7 +42,7 @@ def train_loop(
 
     num_unets = len(trainer_kwargs["imagen"].unets)
     if cfg.only_base:
-        stop_at_unet_number = 1
+        stop_at_unet_number = 2
     else:
         stop_at_unet_number = num_unets + 1
 
@@ -93,6 +94,11 @@ def train_loop_single_unet(
     global_step = 0
     progress_bar = tqdm(total=cfg.num_epochs, disable=False)
     batch_size = train_dataloader.batch_size
+
+    parameters_depth_model = list(trainer.parameters())
+    depth_grads = {k: [] for k in range(len(parameters_depth_model))}
+    # parameters_pose_model = list(trainer.pose_model.parameters())
+    # pose_grads = {k: [] for k in range(len(parameters_pose_model))}
 
     for epoch in range(cfg.num_epochs):
         progress_bar.set_description(f"Unet {unet_idx}\tEpoch {epoch}")
@@ -152,6 +158,12 @@ def train_loop_single_unet(
             else:
                 loss = trainer(**forwards_kwargs)
 
+            for i in range(len(parameters_depth_model)):
+                if parameters_depth_model[i].grad is not None:
+                    depth_grads[i].append(
+                        torch.sum(torch.abs(parameters_depth_model[i].grad)).item()
+                    )
+
             trainer.update(unet_number=unet_idx)
 
             running_loss["loss"] += loss
@@ -208,8 +220,11 @@ def train_loop_single_unet(
                     start_image_or_video=start_image_or_video,
                     stop_at_unet_number=unet_idx,
                 )
+                with open(f"{out_dir}/depth_grads.pkl", "wb") as f:
+                    pickle.dump(depth_grads, f)
             if cfg.train_one_epoch:
                 break
+    return global_step
 
 
 def sample(

@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FormatStrFormatter
 import numpy as np
 import torch
 from rsl_depth_completion.models.benchmarking.calibrated_backprojection_network.kbnet import (
@@ -14,6 +15,8 @@ def plot_losses(losses, rec_losses):
     for i, (k, v) in enumerate(losses.items()):
         axs[i].plot(v)
         axs[i].set_title(k)
+    plt.tight_layout()
+    plt.subplots_adjust(wspace=0.3)
     plt.show()
     pd.DataFrame(rec_losses).plot(title="Reconstruction losses", figsize=(4, 2))
 
@@ -47,3 +50,48 @@ def calc_error_to_gt(
 
     mae = eval_utils.mean_abs_err(1000.0 * output_depth, 1000.0 * ground_truth)
     return mae
+
+
+def plot_grads(depth_grads, pose_grads, topk=5, bottomk=5):
+    import pandas as pd
+
+    depth_grads = {
+        k: v
+        for k, v in sorted(
+            depth_grads.items(), key=lambda x: np.mean(x[1]), reverse=True
+        )
+    }
+    pose_grads = {
+        k: v
+        for k, v in sorted(
+            pose_grads.items(), key=lambda x: np.mean(x[1]), reverse=True
+        )
+    }
+    if topk is not None:
+        depth_grads = {k: v for k, v in list(depth_grads.items())[: topk + 1]}
+        pose_grads = {k: v for k, v in list(pose_grads.items())[: topk + 1]}
+    elif bottomk is not None:
+        depth_grads = {k: v for k, v in list(depth_grads.items())[-bottomk - 1 :]}
+        pose_grads = {k: v for k, v in list(pose_grads.items())[-bottomk - 1 :]}
+
+    fig, axs = plt.subplots(1, 2, figsize=(20, 5))
+
+    # fig.suptitle("Depth (left) and pose (right) gradients")
+    def display_grads(grads, ax, title):
+        print(grads)
+        grads = {**grads}
+        for k, v in grads.items():
+            for i, grad in enumerate(v):
+                if np.isnan(grad):
+                    v[i] = -1
+            # if np.isnan(v).any():
+            #     print(f"NaN in {k}. {title} invalid.")
+            #     return
+        try:
+            pd.DataFrame({k: v for k, v in grads.items() if v}).plot(title=title, ax=ax)
+        except:
+            ax.set_title(f"{title} (empty)")
+
+    display_grads(depth_grads, axs[0], "Depth gradients")
+    display_grads(pose_grads, axs[1], "Pose gradients")
+    plt.show()
