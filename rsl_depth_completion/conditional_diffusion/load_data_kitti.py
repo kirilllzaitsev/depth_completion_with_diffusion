@@ -39,7 +39,7 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
             else:
                 print(f"{eval_batch_path} does not contain {cfg.input_res}")
 
-        assert len(cfg.unets_output_res) == 2
+        assert len(cfg.unets_output_res) <= 2
         base_unet_res = cfg.unets_output_res[0]
         target_lowres_img_size = None
         if cfg.input_res > base_unet_res:
@@ -101,6 +101,7 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
     def __getitem__(self, idx):
         items = super().__getitem__(idx)
         if self.do_crop:
+            items["gt"] = self.prep_img(items["gt"])
             items["d"] = self.prep_img(items["d"])
             items["img"] = self.prep_img(items["img"])
             if "adj_imgs" in items:
@@ -129,6 +130,6 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
 
         return sample
 
-    def prep_img(self, x):
-        x = center_crop(x, crop_size=self.max_input_img_size)
+    def prep_img(self, x, channels_last=False):
+        x = center_crop(x, crop_size=self.max_input_img_size, channels_last=channels_last)
         return x
