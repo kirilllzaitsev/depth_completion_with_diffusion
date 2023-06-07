@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FormatStrFormatter
 import numpy as np
 import torch
+from matplotlib.ticker import FormatStrFormatter
 from rsl_depth_completion.models.benchmarking.calibrated_backprojection_network.kbnet import (
     eval_utils,
 )
@@ -49,7 +49,10 @@ def calc_error_to_gt(
     ground_truth = ground_truth[mask]
 
     mae = eval_utils.mean_abs_err(1000.0 * output_depth, 1000.0 * ground_truth)
-    return mae
+    rmse = eval_utils.root_mean_sq_err(1000.0 * output_depth, 1000.0 * ground_truth)
+    imae = eval_utils.inv_mean_abs_err(0.001 * output_depth, 0.001 * ground_truth)
+    irmse = eval_utils.inv_root_mean_sq_err(0.001 * output_depth, 0.001 * ground_truth)
+    return mae, rmse, imae, irmse
 
 
 def plot_grads(depth_grads, pose_grads, topk=5, bottomk=5):
