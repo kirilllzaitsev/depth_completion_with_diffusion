@@ -64,12 +64,12 @@ def train_loop(
             sample(
                 cfg,
                 trainer,
-                experiment,
                 out_dir,
                 eval_batch,
                 global_step,
                 start_at_unet_number=start_at_unet_number,
                 stop_at_unet_number=num_unets + 1,
+                experiment=experiment,
             )
 
 
@@ -212,13 +212,13 @@ def train_loop_single_unet(
                 sample(
                     cfg,
                     trainer,
-                    experiment,
                     out_dir,
                     eval_batch,
                     global_step,
                     start_at_unet_number=start_at_unet_number,
                     start_image_or_video=start_image_or_video,
                     stop_at_unet_number=unet_idx,
+                    experiment=experiment,
                 )
                 with open(f"{out_dir}/depth_grads.pkl", "wb") as f:
                     pickle.dump(depth_grads, f)
@@ -230,13 +230,13 @@ def train_loop_single_unet(
 def sample(
     cfg,
     trainer: ImagenTrainerType,
-    experiment,
     out_dir,
     batch,
     global_step,
     stop_at_unet_number,
     start_at_unet_number=1,
     start_image_or_video=None,
+    experiment=None,
 ):
     """
     start_at_unet_number: must be used when base unet is trained and provides low resolution conditioning, i.e., start_image_or_video
@@ -256,7 +256,7 @@ def sample(
         return_all_unet_outputs=True,
     )
 
-    if len(samples[0]) > 1:
+    if len(samples[0]) > 1 and experiment is not None:
         experiment.log_metric(
             "epoch/abs_diff_btw_samples",
             torch.sum(torch.abs(samples[0][0] - samples[0][1])).item(),
@@ -270,10 +270,11 @@ def sample(
         unet_samples = (
             samples[unet_idx_samples].cpu().detach().numpy().transpose(0, 2, 3, 1)
         )
-        for idx in range(len(samples[unet_idx_samples])):
-            experiment.log_image(
-                unet_samples[idx],
-                f"{name}_{idx}",
-                step=global_step,
-            )
+        if experiment is not None:
+            for idx in range(len(samples[unet_idx_samples])):
+                experiment.log_image(
+                    unet_samples[idx],
+                    f"{name}_{idx}",
+                    step=global_step,
+                )
     return samples
