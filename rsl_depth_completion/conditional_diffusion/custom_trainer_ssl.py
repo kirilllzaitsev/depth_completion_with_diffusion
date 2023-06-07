@@ -1207,8 +1207,10 @@ class ImagenTrainer(nn.Module):
                 # loss = triplet_loss
                 # loss = imagen_loss
                 # imagen_loss_prep = torch.log(imagen_loss) if 1 > imagen_loss > 0 else imagen_loss
-                imagen_loss_prep = torch.log(imagen_loss)
-                loss = imagen_loss_prep + triplet_loss
+                imagen_loss_prep = (imagen_loss)
+                # imagen_loss_prep = torch.log(imagen_loss)
+                # loss = imagen_loss_prep + triplet_loss
+                loss = triplet_loss
 
                 loss = loss * chunk_size_frac
 
