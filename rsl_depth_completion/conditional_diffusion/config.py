@@ -120,7 +120,7 @@ class cfg:
         unets_output_res.append(input_res)
     stop_at_unet_number = 2
 
-    fp16 = True
+    fp16 = False
     max_batch_size = num_gpus
 
     num_epochs = 0
