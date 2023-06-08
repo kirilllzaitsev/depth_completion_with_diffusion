@@ -17,11 +17,22 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--use-ssl", action="store_true")
-    parser.add_argument("--logdir-name", default="standalone_trainer")
+    parser.add_argument("--logdir-name", default="comet")
     args, _ = parser.parse_known_args()
     use_ssl = args.use_ssl
 
-    cfg, train_logdir = setup_train_pipeline(args.logdir_name, use_ssl=use_ssl)
+    cfg, logdir = setup_train_pipeline(args.logdir_name, use_ssl=use_ssl)
+    experiment = create_tracking_exp(cfg)
+
+    if cfg.disabled:
+        exp_dir = (
+            f"{len(os.listdir(logdir)) + 1:03d}" if os.path.isdir(logdir) else "001"
+        )
+        exp_dir += f"_{cfg.exp_targets=}"
+    else:
+        exp_dir = experiment.name
+    train_logdir = logdir / exp_dir
+    train_logdir.mkdir(parents=True, exist_ok=True)
 
     ds_kwargs = get_ds_kwargs(cfg)
 
@@ -29,7 +40,6 @@ def main():
         ds_name=cfg.ds_name, do_overfit=cfg.do_overfit, cfg=cfg, **ds_kwargs
     )
 
-    experiment = create_tracking_exp(cfg)
     experiment.add_tag("imagen")
     src_files = [
         os.path.basename(__file__),

@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from matplotlib.ticker import FormatStrFormatter
 from rsl_depth_completion.models.benchmarking.calibrated_backprojection_network.kbnet import (
     eval_utils,
 )

@@ -1,5 +1,6 @@
 import argparse
 import os
+import random
 
 import torch
 
@@ -99,6 +100,9 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
         return kitti_kwargs
 
     def __getitem__(self, idx):
+        if idx in [315, 85]:
+            idx = random.randint(0, len(self) - 1)
+            print(f"replacing idx from 315/85 to {idx}, as they are in eval batch")
         items = super().__getitem__(idx)
         if self.do_crop:
             items["gt"] = self.prep_img(items["gt"])

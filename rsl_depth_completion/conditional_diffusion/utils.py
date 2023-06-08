@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from ip_basic import depth_map_utils
+from rsl_depth_completion.conditional_diffusion.ssl_utils import calc_error_to_gt
 from scipy.interpolate import griddata
 
 
@@ -180,18 +181,105 @@ def log_image_comet(step, batch_size, experiment, prefix, k, v):
         )
 
 
-def get_pose_model(device, encoder_type="resnet18"):
-    from kbnet.posenet_model import PoseNetModel
+def print_metrics(mae, rmse, imae, irmse, comment=""):
+    mae_mean = np.mean(mae)
+    rmse_mean = np.mean(rmse)
+    imae_mean = np.mean(imae)
+    irmse_mean = np.mean(irmse)
 
-    pose_model = PoseNetModel(
-        encoder_type=encoder_type,
-        rotation_parameterization="axis",
-        weight_initializer="xavier_normal",
-        activation_func="relu",
-        device=device,
+    mae_std = np.std(mae)
+    rmse_std = np.std(rmse)
+    imae_std = np.std(imae)
+    irmse_std = np.std(irmse)
+
+    # Print evaluation results to console and file
+    print(f"Evaluation results ({comment})")
+    print("{:>8}  {:>8}  {:>8}  {:>8}".format("MAE", "RMSE", "iMAE", "iRMSE"))
+    print(
+        "{:8.3f}  {:8.3f}  {:8.3f}  {:8.3f}".format(
+            mae_mean, rmse_mean, imae_mean, irmse_mean
+        )
     )
 
-    pose_model.train()
-    pose_model_restore_path = "/media/master/wext/msc_studies/second_semester/research_project/related_work/calibrated-backprojection-network/pretrained_models/kitti/posenet-kitti.pth"
-    pose_model.restore_model(pose_model_restore_path)
-    return pose_model
+    print("{:>8}  {:>8}  {:>8}  {:>8}".format("+/-", "+/-", "+/-", "+/-"))
+    print(
+        "{:8.3f}  {:8.3f}  {:8.3f}  {:8.3f}".format(
+            mae_std, rmse_std, imae_std, irmse_std
+        )
+    )
+
+
+def plot_full_prediction(output_depths, eval_batch, kbnet_predictor, idx_to_use=None):
+    idxs = [idx_to_use] if idx_to_use is not None else range(len(eval_batch["rgb"]))
+    kbnet_pred = (
+        kbnet_predictor.predict(
+            image=eval_batch["rgb"].cuda(),
+            sparse_depth=eval_batch["sdm"].cuda(),
+            intrinsics=eval_batch["intrinsics"].cuda(),
+        )
+        .cpu()
+        .squeeze(1)
+        .detach()
+        .numpy()
+    )
+    figs = []
+    maes_kbnet, rmses_kbnet, imaes_kbnet, irmses_kbnet = [], [], [], []
+    maes_trainer, rmses_trainer, imaes_trainer, irmses_trainer = [], [], [], []
+    for idx in idxs:
+        img, pred, sdm, gt, input_img, cond_img, lowres_img = (
+            eval_batch["rgb"][idx],
+            output_depths[idx],
+            eval_batch["sdm"][idx],
+            eval_batch["gt"][idx],
+            eval_batch["input_img"][idx],
+            eval_batch["cond_img"][idx],
+            eval_batch["lowres_img"][idx],
+        )
+        img = img.permute(1, 2, 0).cpu().numpy()
+        pred = pred.squeeze().cpu().detach().numpy()
+        sdm = sdm.squeeze().cpu().detach().numpy()
+        gt = gt.squeeze().cpu().detach().numpy()
+        input_img = input_img.permute(1, 2, 0).cpu().numpy()
+        cond_img = cond_img.permute(1, 2, 0).cpu().numpy()
+        lowres_img = lowres_img.permute(1, 2, 0).cpu().numpy()
+        fig, axs = plt.subplots(1, 8, figsize=(15, 5))
+        axs[0].imshow(img)
+        axs[1].imshow(sdm)
+        axs[2].imshow(gt.squeeze())
+        axs[3].imshow(pred)
+        axs[4].imshow(input_img)
+        axs[5].imshow(cond_img)
+        axs[6].imshow(lowres_img)
+        axs[7].imshow(kbnet_pred[idx])
+        axs[0].set_title("RGB")
+        axs[1].set_title("sparse_depth")
+        axs[2].set_title("gt")
+        axs[3].set_title("predicted_depth")
+        axs[4].set_title("input_image")
+        axs[5].set_title("cond_img")
+        axs[6].set_title("lowres_img")
+        axs[7].set_title("kbnet_pred")
+        for ax in axs:
+            ax.axis("off")
+        plt.show()
+        figs.append(fig)
+
+        mae_kbnet, rmse_kbnet, imae_kbnet, irmse_kbnet = calc_error_to_gt(
+            torch.tensor(kbnet_pred).cuda()[idx], eval_batch["gt"][idx]
+        )
+        mae_trainer, rmse_trainer, imae_trainer, irmse_trainer = calc_error_to_gt(
+            output_depths.cuda()[idx], eval_batch["gt"][idx]
+        )
+        maes_kbnet.append(mae_kbnet)
+        rmses_kbnet.append(rmse_kbnet)
+        imaes_kbnet.append(imae_kbnet)
+        irmses_kbnet.append(irmse_kbnet)
+        maes_trainer.append(mae_trainer)
+        rmses_trainer.append(rmse_trainer)
+        imaes_trainer.append(imae_trainer)
+        irmses_trainer.append(irmse_trainer)
+    print_metrics(
+        maes_trainer, rmses_trainer, imaes_trainer, irmses_trainer, comment="trainer"
+    )
+    print_metrics(maes_kbnet, rmses_kbnet, imaes_kbnet, irmses_kbnet, comment="kbnet")
+    return figs

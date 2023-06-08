@@ -273,9 +273,7 @@ class GaussianDiffusionContinuousTimes(nn.Module):
         )
 
     def sample_random_times(self, batch_size, *, device):
-        # return torch.zeros((batch_size,), device=device).float().uniform_(0, 0.1)
-        return torch.zeros((batch_size,), device=device).float()
-        # return torch.zeros((batch_size,), device=device).float().uniform_(0, 1)
+        return torch.zeros((batch_size,), device=device).float().uniform_(0, 1)
 
     def get_condition(self, times):
         return maybe(self.log_snr)(times)

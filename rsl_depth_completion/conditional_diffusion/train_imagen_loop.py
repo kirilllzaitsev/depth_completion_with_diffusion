@@ -92,7 +92,7 @@ def train_loop_single_unet(
     save_path,
 ):
     global_step = 0
-    progress_bar = tqdm(total=cfg.num_epochs, disable=False)
+    progress_bar = tqdm(total=cfg.num_epochs, disable=False, leave=False)
     batch_size = train_dataloader.batch_size
 
     parameters_depth_model = list(trainer.parameters())
@@ -102,7 +102,7 @@ def train_loop_single_unet(
 
     for epoch in range(cfg.num_epochs):
         progress_bar.set_description(f"Unet {unet_idx}\tEpoch {epoch}")
-        running_loss = {"loss": 0, "diff_to_orig_img": 0}
+        running_loss = {"loss": 0}
         if cfg.do_overfit:
             batch_scale_factor = batch_size // eval_batch["input_img"].shape[0]
             batch_scale_factor = max(1, batch_scale_factor)
@@ -116,7 +116,7 @@ def train_loop_single_unet(
                 * len(train_dataloader)
             )
         else:
-            data_gen = tqdm(enumerate(train_dataloader), total=len(train_dataloader))
+            data_gen = tqdm(enumerate(train_dataloader), total=len(train_dataloader), leave=False, desc="Train")
         for batch_idx, batch in data_gen:
             images = batch["input_img"]
             if "text_embed" in batch:
@@ -194,13 +194,11 @@ def train_loop_single_unet(
         if (epoch - 1) % cfg.sampling_freq == 0 or epoch == cfg.num_epochs - 1:
             progress_bar.set_postfix(**running_loss)
             if cfg.do_save_model:
-                if not cfg.do_save_last_model:
-                    print(
-                        f"Ignoring {save_path} and saving epoch-wise to {out_dir}/model-{epoch}.pt"
-                    )
-                    save_path = save_path.replace(".pt", f"-{epoch}.pt")
-                trainer.save(save_path)
-                print(f"Saved trainer of unet {unet_idx} to {save_path}")
+                upd_save_path = save_path
+                if cfg.do_save_every_n_epochs:
+                    upd_save_path = upd_save_path.replace(".pt", f"-{epoch}.pt")
+                trainer.save(upd_save_path)
+                print(f"Saved trainer of unet {unet_idx} to {upd_save_path}")
 
             if cfg.do_sample:
                 if cfg.only_super_res:

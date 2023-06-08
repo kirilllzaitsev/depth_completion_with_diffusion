@@ -25,7 +25,7 @@ from imagen_pytorch.version import __version__
 from kbnet.kbnet_model import KBNetModel
 from lion_pytorch import Lion
 from packaging import version
-from rsl_depth_completion.conditional_diffusion.utils import get_pose_model
+from rsl_depth_completion.conditional_diffusion.kbnet_utils import get_pose_model
 from rsl_depth_completion.models.benchmarking.calibrated_backprojection_network.kbnet import (
     eval_utils,
 )
@@ -1088,9 +1088,6 @@ class ImagenTrainer(nn.Module):
             self.accelerator.clip_grad_norm_(unet.parameters(), self.max_grad_norm)
 
         optimizer.step()
-        # TODO: ensure the grad flow is correct
-        # self.pose_optimizer.step()
-
         optimizer.zero_grad()
         self.pose_optimizer.zero_grad()
 
@@ -1163,8 +1160,6 @@ class ImagenTrainer(nn.Module):
         rec_losses = kwargs.pop("rec_losses", defaultdict(lambda: list()))
         losses = kwargs.pop("losses", defaultdict(lambda: list()))
 
-        self.pose_optimizer.zero_grad()
-
         for chunk_size_frac, (chunked_args, chunked_kwargs) in split_args_and_kwargs(
             *args, split_size=max_batch_size, **kwargs
         ):
@@ -1186,9 +1181,10 @@ class ImagenTrainer(nn.Module):
                     unet_number=unet_number,
                     **chunked_kwargs,
                 )
-                output_depth01 = torch.sigmoid(output_depth)
+                output_depth0 = torch.sigmoid(output_depth)
+                # output_depth0 = (output_depth + 1) * 0.5
                 output_depth0 = self.min_predict_depth / (
-                    output_depth01 + self.min_predict_depth / self.max_predict_depth
+                    output_depth0 + self.min_predict_depth / self.max_predict_depth
                 )
 
                 # Compute loss function

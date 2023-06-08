@@ -50,7 +50,7 @@ def setup_optimizations():
     torch.backends.cudnn.benchmark = True
 
 
-def setup_train_pipeline(logdir_name="standalone_trainer", use_ssl=True):
+def setup_train_pipeline(logdir_name="comet", use_ssl=True):
     cfg_cls = cfg_ssl_cls if use_ssl else cfg_std_cls
     cfg = cfg_cls(path=cfg_cls.default_file)
 
@@ -90,12 +90,9 @@ def setup_train_pipeline(logdir_name="standalone_trainer", use_ssl=True):
 
     logdir = Path("./logs") if not cfg.is_cluster else Path(cfg.cluster_logdir)
     logdir = logdir / logdir_name
+    logdir.mkdir(parents=True, exist_ok=True)
 
-    exp_dir = f"{len(os.listdir(logdir)) + 1:03d}" if os.path.isdir(logdir) else "001"
-    exp_dir += f"_{cfg.exp_targets=}"
-    train_logdir = logdir / exp_dir
-    train_logdir.mkdir(parents=True, exist_ok=True)
-    return cfg, train_logdir
+    return cfg, logdir
 
 
 def get_ds_kwargs(cfg):

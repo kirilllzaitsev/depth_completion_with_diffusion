@@ -240,7 +240,7 @@ def prob_mask_like(shape, prob, device):
 
 @torch.jit.script
 def beta_linear_log_snr(t):
-    return -torch.log(expm1(1e-4 + 10 * (t ** 2)))
+    return -torch.log(expm1(1e-4 + 10 * (t**2)))
 
 
 @torch.jit.script
@@ -303,7 +303,7 @@ class GaussianDiffusionContinuousTimes(nn.Module):
         posterior_mean = alpha_next * (x_t * (1 - c) / alpha + c * x_start)
 
         # following (eq. 33)
-        posterior_variance = (sigma_next ** 2) * c
+        posterior_variance = (sigma_next**2) * c
         posterior_log_variance_clipped = log(posterior_variance, eps=1e-20)
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
 
@@ -931,7 +931,7 @@ class LinearAttention(nn.Module):
         self, dim, dim_head=32, heads=8, dropout=0.05, context_dim=None, **kwargs
     ):
         super().__init__()
-        self.scale = dim_head ** -0.5
+        self.scale = dim_head**-0.5
         self.heads = heads
         inner_dim = dim_head * heads
         self.norm = ChanLayerNorm(dim)
@@ -1129,7 +1129,7 @@ class CrossEmbedLayer(nn.Module):
         num_scales = len(kernel_sizes)
 
         # calculate the dimension at each scale
-        dim_scales = [int(dim_out / (2 ** i)) for i in range(1, num_scales)]
+        dim_scales = [int(dim_out / (2**i)) for i in range(1, num_scales)]
         dim_scales = [*dim_scales, dim_out - sum(dim_scales)]
 
         self.convs = nn.ModuleList([])
@@ -1437,7 +1437,7 @@ class Unet(nn.Module):
 
         # scale for resnet skip connections
 
-        self.skip_connect_scale = 1.0 if not scale_skip_connection else (2 ** -0.5)
+        self.skip_connect_scale = 1.0 if not scale_skip_connection else (2**-0.5)
 
         # layers
 

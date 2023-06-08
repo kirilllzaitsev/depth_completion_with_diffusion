@@ -42,7 +42,7 @@ class cfg:
     batch_size = 0
     num_workers = 0
     do_save_model = True
-    do_save_last_model = True
+    do_save_every_n_epochs = False
     is_cluster = os.path.exists("/cluster")
 
     def load_from_file(self, path):
