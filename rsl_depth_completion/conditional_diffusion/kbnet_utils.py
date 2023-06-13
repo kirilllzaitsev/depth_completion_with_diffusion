@@ -1,9 +1,12 @@
+import json
+from argparse import Namespace
+
 import torch
 from kbnet.kbnet_model import KBNetModel
 
 
 class KBnetPredictor:
-    def __init__(self, args=None, depth_model=None, pose_model=None):
+    def __init__(self, args=None, depth_model=None, pose_model=None, pose_model_restore_path=None):
         if depth_model is None and args is not None:
             depth_model = KBNetModel(
                 input_channels_image=args.input_channels_image,
@@ -25,8 +28,8 @@ class KBnetPredictor:
             )
             depth_model.restore_model(args.depth_model_restore_path)
             depth_model.eval()
-        if pose_model is None and args is not None:
-            pose_model = get_pose_model(args.device)
+        if pose_model is None and pose_model_restore_path is not None:
+            pose_model = get_pose_model(pose_model_restore_path, args.device)
         self.depth_model = depth_model
         self.pose_model = pose_model
 
@@ -44,7 +47,7 @@ class KBnetPredictor:
         return output_depth
 
 
-def get_pose_model(device, encoder_type="resnet18"):
+def get_pose_model(pose_model_restore_path, device, encoder_type="resnet18"):
     from kbnet.posenet_model import PoseNetModel
 
     pose_model = PoseNetModel(
@@ -56,6 +59,11 @@ def get_pose_model(device, encoder_type="resnet18"):
     )
 
     pose_model.train()
-    pose_model_restore_path = "/media/master/wext/msc_studies/second_semester/research_project/related_work/calibrated-backprojection-network/pretrained_models/kitti/posenet-kitti.pth"
     pose_model.restore_model(pose_model_restore_path)
     return pose_model
+
+
+def load_kbnet():
+    args = Namespace(**json.load(open("kbnet_val_params.json", "r")))
+    kbnet_predictor = KBnetPredictor(args=args)
+    return kbnet_predictor

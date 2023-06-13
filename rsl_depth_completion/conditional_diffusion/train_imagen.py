@@ -18,10 +18,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--use-ssl", action="store_true")
     parser.add_argument("--logdir-name", default="comet")
+    parser.add_argument("--config-path", default="configs/overfit.yaml")
     args, _ = parser.parse_known_args()
     use_ssl = args.use_ssl
 
-    cfg, logdir = setup_train_pipeline(args.logdir_name, use_ssl=use_ssl)
+    cfg, logdir = setup_train_pipeline(args.config_path, args.logdir_name, use_ssl=use_ssl)
     experiment = create_tracking_exp(cfg)
 
     if cfg.disabled:
@@ -80,6 +81,7 @@ def main():
         use_ema=False,
         accelerate_log_with="comet_ml",
         accelerate_project_dir="logs",
+        pose_model_restore_path=cfg.pose_model_restore_path
     )
 
     train_loop_kwargs = dict(

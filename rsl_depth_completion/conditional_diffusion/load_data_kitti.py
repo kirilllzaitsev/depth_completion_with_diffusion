@@ -33,8 +33,10 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
         if os.path.exists(eval_batch_path):
             total_eval_batch = torch.load(eval_batch_path)
             if cfg.input_res in total_eval_batch:
+                # take_first_n_samples = cfg.batch_size
+                take_first_n_samples = 2
                 eval_batch = {
-                    k: v[: cfg.batch_size]
+                    k: v[: take_first_n_samples]
                     for k, v in torch.load(eval_batch_path)[cfg.input_res].items()
                 }
             else:
@@ -134,6 +136,3 @@ class KITTIDMDataset(CustomKittiDCDataset, BaseDMDataset):
 
         return sample
 
-    def prep_img(self, x, channels_last=False):
-        x = center_crop(x, crop_size=self.max_input_img_size, channels_last=channels_last)
-        return x

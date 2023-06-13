@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from rsl_depth_completion.conditional_diffusion import utils as data_utils
 from rsl_depth_completion.conditional_diffusion.img_utils import (
+    center_crop,
     fix_channel_not_last,
     resize,
 )
@@ -44,6 +45,9 @@ class BaseDMDataset(torch.utils.data.Dataset):
         self.eval_batch = self.prep_eval_batch(eval_batch) if eval_batch else None
 
     def prep_eval_batch(self, eval_batch):
+        if self.cfg.do_crop:
+            for k in ["sdm", "rgb", "gt"]:
+                eval_batch[k] = self.prep_img(eval_batch[k])
         eval_batch["input_img"] = self.prep_sparse_dm(
             eval_batch["sdm"], self.input_img_sdm_interpolation_mode, channel_dim=1
         )
@@ -54,6 +58,8 @@ class BaseDMDataset(torch.utils.data.Dataset):
                 cond_image = self.prep_rgbs_as_cond_img(rgb)
             else:
                 cond_image = self.prep_sdms_as_cond_img(eval_batch["sdm"])
+            if len(cond_image.shape) == 3:
+                cond_image = cond_image.unsqueeze(0)
             eval_batch["cond_img"] = cond_image
         if self.use_text_embed:
             embeds = []
@@ -261,3 +267,9 @@ class BaseDMDataset(torch.utils.data.Dataset):
         depth_model.restore_model(args.depth_model_restore_path)
         depth_model.eval()
         return depth_model
+
+    def prep_img(self, x, channels_last=False):
+        x = center_crop(
+            x, crop_size=self.cfg.max_input_img_size, channels_last=channels_last
+        )
+        return x

@@ -57,5 +57,6 @@
     "save_outputs": true,
     "keep_input_filenames": false,
     "depth_model_restore_path": "models/kbnet/kbnet-kitti.pth",
+    "pose_model_restore_path": "models/kbnet/pose_model-200-epochs-overfit.pth",
     "device": "cuda"
 }

@@ -4,6 +4,7 @@ import os
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import torch
 from ip_basic import depth_map_utils
 from rsl_depth_completion.conditional_diffusion.ssl_utils import calc_error_to_gt
@@ -168,6 +169,8 @@ def log_batch(
 
 
 def log_image_comet(step, batch_size, experiment, prefix, k, v):
+    if len(v.shape) == 3:
+        v = v.unsqueeze(0)
     v = v.cpu().numpy().transpose(0, 2, 3, 1)
     v = rescale_img_to_zero_one_range(v)
     for idx in range(batch_size):
@@ -181,7 +184,7 @@ def log_image_comet(step, batch_size, experiment, prefix, k, v):
         )
 
 
-def print_metrics(mae, rmse, imae, irmse, comment=""):
+def print_metrics(mae, rmse, imae, irmse, comment="", save_csv=False, save_csv_dir=None):
     mae_mean = np.mean(mae)
     rmse_mean = np.mean(rmse)
     imae_mean = np.mean(imae)
@@ -207,9 +210,24 @@ def print_metrics(mae, rmse, imae, irmse, comment=""):
             mae_std, rmse_std, imae_std, irmse_std
         )
     )
+    if save_csv:
+        df = pd.DataFrame(
+            {
+                "MAE": mae,
+                "RMSE": rmse,
+                "iMAE": imae,
+                "iRMSE": irmse,
+            }
+        )
+        save_path = f"{comment}.csv"
+        if save_csv_dir is not None:
+            save_path = os.path.join(save_csv_dir, save_path)
+        df = df.round(2)
+        df.to_csv(save_path)
+        print(f"Saved results to {save_path}")
 
 
-def plot_full_prediction(output_depths, eval_batch, kbnet_predictor, idx_to_use=None):
+def plot_full_prediction(output_depths, eval_batch, kbnet_predictor, idx_to_use=None, save_csv_dir=None):
     idxs = [idx_to_use] if idx_to_use is not None else range(len(eval_batch["rgb"]))
     kbnet_pred = (
         kbnet_predictor.predict(
@@ -260,6 +278,18 @@ def plot_full_prediction(output_depths, eval_batch, kbnet_predictor, idx_to_use=
         axs[5].set_title("cond_img")
         axs[6].set_title("lowres_img")
         axs[7].set_title("kbnet_pred")
+
+        if save_csv_dir is not None:
+            os.makedirs(f"{save_csv_dir}/preds", exist_ok=True)
+            cv2.imwrite(f"{save_csv_dir}/preds/kbnet_pred_{idx}.png", kbnet_pred[idx])
+            cv2.imwrite(f"{save_csv_dir}/preds/lowres_img_{idx}.png", lowres_img*100)
+            cv2.imwrite(f"{save_csv_dir}/preds/cond_img_{idx}.png", cond_img*100)
+            cv2.imwrite(f"{save_csv_dir}/preds/input_img_{idx}.png", input_img*100)
+            cv2.imwrite(f"{save_csv_dir}/preds/pred_{idx}.png", pred)
+            cv2.imwrite(f"{save_csv_dir}/preds/gt_{idx}.png", gt)
+            cv2.imwrite(f"{save_csv_dir}/preds/sdm_{idx}.png", sdm*100)
+            cv2.imwrite(f"{save_csv_dir}/preds/img_{idx}.png", img*255)
+            print(f"Saved rgb for prediction to {save_csv_dir}/preds/img_{idx}.png")
         for ax in axs:
             ax.axis("off")
         plt.show()
@@ -280,7 +310,22 @@ def plot_full_prediction(output_depths, eval_batch, kbnet_predictor, idx_to_use=
         imaes_trainer.append(imae_trainer)
         irmses_trainer.append(irmse_trainer)
     print_metrics(
-        maes_trainer, rmses_trainer, imaes_trainer, irmses_trainer, comment="trainer"
+        maes_trainer,
+        rmses_trainer,
+        imaes_trainer,
+        irmses_trainer,
+        comment="trainer",
+        save_csv=True,
+        save_csv_dir=save_csv_dir
     )
-    print_metrics(maes_kbnet, rmses_kbnet, imaes_kbnet, irmses_kbnet, comment="kbnet")
+    print_metrics(
+        maes_kbnet,
+        rmses_kbnet,
+        imaes_kbnet,
+        irmses_kbnet,
+        comment="kbnet",
+        save_csv=True,
+        save_csv_dir=save_csv_dir
+    )
+
     return figs
