@@ -36,7 +36,7 @@ class early_stop_cfg:
 class cfg:
     # ds_name = "mnist"
     ds_name = "kitti"
-    default_file = "configs/overfit.yaml"
+    # default_file = "configs/overfit.yaml"
     # default_file = "configs/full_dataset.yaml"
 
     batch_size = 0
@@ -130,8 +130,10 @@ class cfg:
     do_save_inputs_every_batch = False
 
     eval_batch_path = "eval_batch.pt"
+    trainer_ckpt_path = None
+    pose_model_restore_path = None
 
-    max_depth = 80
+    max_depth = 100
     do_crop = True
 
     seed = 100
@@ -185,6 +187,12 @@ class cfg_ssl(cfg):
     unets_output_res = [64, 256]
     eval_batch_path = "eval_batch.pt"
     use_triplet_loss = True
+
+
+if cfg_ssl.is_cluster:
+    cfg_ssl.pose_model_restore_path = "/cluster/home/kzaitse/rsl_depth_completion/rsl_depth_completion/conditional_diffusion/models/kbnet/posenet-kitti.pth"
+else:
+    cfg_ssl.pose_model_restore_path = "/media/master/wext/msc_studies/second_semester/research_project/related_work/calibrated-backprojection-network/pretrained_models/kitti/posenet-kitti.pth"
 
 
 if __name__ == "__main__":

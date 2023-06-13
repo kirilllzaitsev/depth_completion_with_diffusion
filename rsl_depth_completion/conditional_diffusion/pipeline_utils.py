@@ -50,9 +50,9 @@ def setup_optimizations():
     torch.backends.cudnn.benchmark = True
 
 
-def setup_train_pipeline(logdir_name="comet", use_ssl=True):
+def setup_train_pipeline(config_path, logdir_name="comet", use_ssl=True):
     cfg_cls = cfg_ssl_cls if use_ssl else cfg_std_cls
-    cfg = cfg_cls(path=cfg_cls.default_file)
+    cfg = cfg_cls(path=config_path)
 
     if "ipykernel" not in sys.argv[0]:
         parser = argparse.ArgumentParser()
@@ -60,7 +60,7 @@ def setup_train_pipeline(logdir_name="comet", use_ssl=True):
         if use_ssl:
             defaults = {**defaults, **vars(cfg_ssl_cls)}
         for attr_key, attr_value in defaults.items():
-            attr_type = type(attr_value)
+            attr_type = type(attr_value) if attr_value is not None else str
             if not attr_key.startswith("__") and not callable(attr_value):
                 obj_attr_value = (
                     getattr(cfg, attr_key) if attr_key in vars(cfg) else attr_value
@@ -89,7 +89,7 @@ def setup_train_pipeline(logdir_name="comet", use_ssl=True):
             )
 
     logdir = Path("./logs") if not cfg.is_cluster else Path(cfg.cluster_logdir)
-    logdir = logdir / logdir_name
+    logdir = logdir.absolute() / logdir_name
     logdir.mkdir(parents=True, exist_ok=True)
 
     return cfg, logdir
