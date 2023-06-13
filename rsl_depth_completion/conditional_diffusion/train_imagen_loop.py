@@ -1,3 +1,4 @@
+import copy
 import os
 import pickle
 import typing as t
@@ -8,7 +9,16 @@ from rsl_depth_completion.conditional_diffusion.custom_trainer import ImagenTrai
 from rsl_depth_completion.conditional_diffusion.custom_trainer_ssl import (
     ImagenTrainer as ImagenTrainerSSL,
 )
-from rsl_depth_completion.conditional_diffusion.utils import log_batch
+from rsl_depth_completion.conditional_diffusion.kbnet_utils import load_kbnet
+from rsl_depth_completion.conditional_diffusion.ssl_utils import (
+    calc_error_to_gt,
+    plot_train_depths_overall,
+)
+from rsl_depth_completion.conditional_diffusion.utils import (
+    log_batch,
+    plot_full_prediction,
+    print_metrics,
+)
 from torchvision.utils import save_image
 from tqdm import tqdm
 
@@ -48,6 +58,8 @@ def train_loop(
 
     for unet_idx in range(start_at_unet_number, stop_at_unet_number):
         trainer = init_trainer(trainer_kwargs, use_ssl)
+        if cfg.trainer_ckpt_path is not None:
+            trainer.load(cfg.trainer_ckpt_path, only_model=True)
         train_loop_single_unet(
             cfg,
             trainer,
@@ -95,10 +107,36 @@ def train_loop_single_unet(
     progress_bar = tqdm(total=cfg.num_epochs, disable=False, leave=False)
     batch_size = train_dataloader.batch_size
 
+    parameters_pose_model = list(trainer.pose_model.parameters())
     parameters_depth_model = list(trainer.parameters())
     depth_grads = {k: [] for k in range(len(parameters_depth_model))}
-    # parameters_pose_model = list(trainer.pose_model.parameters())
-    # pose_grads = {k: [] for k in range(len(parameters_pose_model))}
+    pose_grads = {k: [] for k in range(len(parameters_pose_model))}
+    rec_losses = {
+        "image_01_loss": [],
+        "image_02_loss": [],
+    }
+    losses = {
+        "loss_color": [],
+        "loss_structure": [],
+        "loss_sparse_depth": [],
+        "loss_smoothness": [],
+        "triplet_loss": [],
+        "imagen_loss": [],
+        "MAE": [],
+        "RMSE": [],
+        "IMAE": [],
+        "IRMSE": [],
+    }
+    val_losses = {
+        "MAE": [],
+        "RMSE": [],
+        "IMAE": [],
+        "IRMSE": [],
+    }
+    num_train_samples_to_watch = 4
+    output_depths = [[] for _ in range(num_train_samples_to_watch)]
+    sampled_depths = []
+    kbnet_predictor = load_kbnet()
 
     for epoch in range(cfg.num_epochs):
         progress_bar.set_description(f"Unet {unet_idx}\tEpoch {epoch}")
@@ -116,7 +154,12 @@ def train_loop_single_unet(
                 * len(train_dataloader)
             )
         else:
-            data_gen = tqdm(enumerate(train_dataloader), total=len(train_dataloader), leave=False, desc="Train")
+            data_gen = tqdm(
+                enumerate(train_dataloader),
+                total=len(train_dataloader),
+                leave=False,
+                desc="Train",
+            )
         for batch_idx, batch in data_gen:
             images = batch["input_img"]
             if "text_embed" in batch:
@@ -145,18 +188,66 @@ def train_loop_single_unet(
                 adj_imgs = batch["adj_imgs"]
                 ssl_kwargs = dict(
                     image0=batch["rgb"],
-                    image1=adj_imgs[0],
-                    image2=adj_imgs[1],
+                    image1=adj_imgs[:, 0],
+                    image2=adj_imgs[:, 1],
                     filtered_sparse_depth0=batch["sdm"],
                     filtered_validity_map_depth0=validity_map_depth,
                     intrinsics=batch["intrinsics"],
+                    rec_losses=rec_losses,
+                    losses=losses,
                 )
                 forwards_kwargs.update(ssl_kwargs)
 
             if cfg.use_triplet_loss:
                 loss, output_depth = trainer(**forwards_kwargs)
+                for i in range(len(parameters_depth_model)):
+                    if parameters_depth_model[i].grad is not None:
+                        depth_grads[i].append(
+                            torch.sum(torch.abs(parameters_depth_model[i].grad)).item()
+                        )
+                for i in range(len(parameters_pose_model)):
+                    if parameters_pose_model[i].grad is not None:
+                        pose_grads[i].append(
+                            torch.sum(torch.abs(parameters_pose_model[i].grad)).item()
+                        )
+
+                trainer.update(unet_number=unet_idx)
+
+                mae, rmse, imae, irmse = calc_error_to_gt(output_depth, batch["gt"])
+
+                losses["MAE"].append(mae.item())
+                losses["RMSE"].append(rmse.item())
+                losses["IMAE"].append(imae.item())
+                losses["IRMSE"].append(irmse.item())
+
+                for stats in [losses, rec_losses]:
+                    for k, v in stats.items():
+                        experiment.log_metric(f"step/{k}", v[-1], step=global_step)
+
+                if batch_idx in range(num_train_samples_to_watch):
+                    # take first sample from first N batches
+                    output_depths[batch_idx].append(output_depth[0])
+
+                    full_pred_figs = plot_full_prediction(
+                        eval_batch=batch,
+                        output_depths=output_depth,
+                        kbnet_predictor=kbnet_predictor,
+                        # idx_to_use=-1,
+                    )
+                    for idx, fig in enumerate(full_pred_figs):
+                        experiment.log_figure(
+                            f"step/val/sample_{idx}",
+                            fig,
+                            step=global_step,
+                        )
             else:
                 loss = trainer(**forwards_kwargs)
+
+                experiment.log_metric(
+                    "step/loss",
+                    loss,
+                    step=global_step,
+                )
 
             for i in range(len(parameters_depth_model)):
                 if parameters_depth_model[i].grad is not None:
@@ -168,11 +259,6 @@ def train_loop_single_unet(
 
             running_loss["loss"] += loss
 
-            experiment.log_metric(
-                "step/loss",
-                loss,
-                step=global_step,
-            )
             if cfg.do_overfit and cfg.do_save_inputs_every_batch:
                 log_batch(
                     batch,
@@ -207,7 +293,7 @@ def train_loop_single_unet(
                 else:
                     start_image_or_video = None
                     start_at_unet_number = 1
-                sample(
+                sampled_depths = sample(
                     cfg,
                     trainer,
                     out_dir,
@@ -218,10 +304,72 @@ def train_loop_single_unet(
                     stop_at_unet_number=unet_idx,
                     experiment=experiment,
                 )
-                with open(f"{out_dir}/depth_grads.pkl", "wb") as f:
-                    pickle.dump(depth_grads, f)
+                assert len(sampled_depths) == 1, "Only the last unet should sample"
+                sampled_depth = sampled_depths[0]
+                sampled_depths.append(sampled_depth)
+                if cfg.use_triplet_loss:
+                    mae, rmse, imae, irmse = calc_error_to_gt(
+                        sampled_depth, eval_batch["gt"]
+                    )
+
+                    val_losses["MAE"].append(mae.item())
+                    val_losses["RMSE"].append(rmse.item())
+                    val_losses["IMAE"].append(imae.item())
+                    val_losses["IRMSE"].append(irmse.item())
+
+                    for k, v in val_losses.items():
+                        experiment.log_metric(f"step/val/{k}", v[-1], step=global_step)
+
+                    full_pred_figs = plot_full_prediction(
+                        eval_batch=eval_batch,
+                        output_depths=sampled_depth,
+                        kbnet_predictor=kbnet_predictor,
+                        # idx_to_use=-1,
+                    )
+                    for idx, fig in enumerate(full_pred_figs):
+                        experiment.log_figure(
+                            f"step/val/sample_{idx}",
+                            fig,
+                            step=global_step,
+                        )
+
+            with open(f"{out_dir}/depth_grads.pkl", "wb") as f:
+                pickle.dump(depth_grads, f)
             if cfg.train_one_epoch:
                 break
+    if cfg.do_sample:
+        training_progression_figs = plot_train_depths_overall(
+            output_depths, out_dir, "train"
+        )
+        for idx, fig in enumerate(training_progression_figs):
+            experiment.log_figure(
+                f"step/val/sample_{idx}",
+                fig,
+                step=global_step + 1,
+            )
+        sampling_progression_figs = plot_train_depths_overall(
+            sampled_depths, out_dir, "eval"
+        )
+        for idx, fig in enumerate(sampling_progression_figs):
+            experiment.log_figure(
+                f"step/val/sample_{idx}",
+                fig,
+                step=global_step + 1,
+            )
+    print_metrics(
+        losses["MAE"],
+        losses["RMSE"],
+        losses["IMAE"],
+        losses["IRMSE"],
+        comment="SSL train",
+    )
+    print_metrics(
+        val_losses["MAE"],
+        val_losses["RMSE"],
+        val_losses["IMAE"],
+        val_losses["IRMSE"],
+        comment="SSL val",
+    )
     return global_step
 
 
@@ -253,6 +401,8 @@ def sample(
         start_image_or_video=start_image_or_video,
         return_all_unet_outputs=True,
     )
+    for i, unet_samples in enumerate(samples):
+        samples[i] = unet_samples.detach().cpu()
 
     if len(samples[0]) > 1 and experiment is not None:
         experiment.log_metric(
@@ -266,7 +416,7 @@ def sample(
         save_image(samples[unet_idx_samples], str(out_path), nrow=10)
         name = f"samples/unet_{unet_idx_samples+start_at_unet_number-1}"
         unet_samples = (
-            samples[unet_idx_samples].cpu().detach().numpy().transpose(0, 2, 3, 1)
+            samples[unet_idx_samples].numpy().transpose(0, 2, 3, 1)
         )
         if experiment is not None:
             for idx in range(len(samples[unet_idx_samples])):
@@ -275,4 +425,7 @@ def sample(
                     f"{name}_{idx}",
                     step=global_step,
                 )
+    # samples are in the range [0, 1]
+    for unet_idx_samples in range(len(samples)):
+        samples[unet_idx_samples] *= trainer.max_predict_depth
     return samples
