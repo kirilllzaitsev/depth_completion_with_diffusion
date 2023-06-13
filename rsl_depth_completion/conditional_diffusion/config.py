@@ -183,7 +183,7 @@ class cfg_ssl(cfg):
     input_res = 256
     input_img_size = (256, 256)
     unets_output_res = [64, 256]
-    eval_batch_path = "eval_batch_ssl.pt"
+    eval_batch_path = "eval_batch.pt"
     use_triplet_loss = True
 
 
