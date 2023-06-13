@@ -1183,9 +1183,7 @@ class ImagenTrainer(nn.Module):
                 )
                 output_depth0 = torch.sigmoid(output_depth)
                 # output_depth0 = (output_depth + 1) * 0.5
-                output_depth0 = self.min_predict_depth / (
-                    output_depth0 + self.min_predict_depth / self.max_predict_depth
-                )
+                output_depth0 = output_depth0 * self.max_predict_depth
 
                 # Compute loss function
                 triplet_loss, loss_info = KBNetModel.compute_loss(
