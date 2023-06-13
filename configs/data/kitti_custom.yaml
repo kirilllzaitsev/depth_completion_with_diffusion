@@ -11,6 +11,11 @@ ds_config:
   jitter: 0.1
   result_dir: ${paths.output_dir}/results
 
+  train_image_path: ${data_dir}/data/train_val_test_file_paths_raw/training/kitti_train_image.txt
+  train_intrinsics_path: ${data_dir}/data/train_val_test_file_paths_raw/training/kitti_train_intrinsics.txt
+  train_sparse_depth_path: ${data_dir}/data/train_val_test_file_paths_raw/training/kitti_train_sparse_depth.txt
+  train_ground_truth_path: ${data_dir}/data/train_val_test_file_paths_raw/training/kitti_train_ground_truth.txt
+
   val_image_path: ${data_dir}/data/train_val_test_file_paths_raw/validation/kitti_val_image.txt
   val_intrinsics_path: ${data_dir}/data/train_val_test_file_paths_raw/validation/kitti_val_intrinsics.txt
   val_sparse_depth_path: ${data_dir}/data/train_val_test_file_paths_raw/validation/kitti_val_sparse_depth.txt
@@ -20,5 +25,7 @@ ds_config:
   test_intrinsics_path: ${forest_data_dir}/kitti_format_subsample/paths/intrinsics.txt
   test_sparse_depth_path: ${forest_data_dir}/kitti_format_subsample/paths/sparse_depth.txt
 
-  split: val
-  subsplit: select
+  split: train
+  subsplit: train
+  # split: val
+  # subsplit: select
