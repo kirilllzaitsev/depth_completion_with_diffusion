@@ -26,6 +26,7 @@ from kbnet.kbnet_model import KBNetModel
 from lion_pytorch import Lion
 from packaging import version
 from rsl_depth_completion.conditional_diffusion.kbnet_utils import get_pose_model
+from rsl_depth_completion.conditional_diffusion.ssl_utils import compute_triplet_loss
 from rsl_depth_completion.models.benchmarking.calibrated_backprojection_network.kbnet import (
     eval_utils,
 )
@@ -332,6 +333,7 @@ class ImagenTrainer(nn.Module):
         fs_kwargs: dict = None,
         max_checkpoints_keep=20,
         use_lion=False,
+        pose_model_restore_path=None,
         **kwargs,
     ):
         super().__init__()
@@ -496,7 +498,8 @@ class ImagenTrainer(nn.Module):
         self.to(self.device)
 
         # ssl
-        self.pose_model = get_pose_model(self.device)
+
+        self.pose_model = get_pose_model(pose_model_restore_path, self.device)
 
         self.pose_optimizer = torch.optim.Adam(
             [
@@ -1186,7 +1189,7 @@ class ImagenTrainer(nn.Module):
                 output_depth0 = output_depth0 * self.max_predict_depth
 
                 # Compute loss function
-                triplet_loss, loss_info = KBNetModel.compute_loss(
+                triplet_loss, loss_info = compute_triplet_loss(
                     image0=image0,
                     image1=image1,
                     image2=image2,
@@ -1196,15 +1199,18 @@ class ImagenTrainer(nn.Module):
                     intrinsics=intrinsics,
                     pose01=pose01,
                     pose02=pose02,
+                    w_structure=0.95,
+                    w_sparse_depth=2.90,
+                    w_smoothness=0.04,
                 )
 
                 # loss = triplet_loss
                 # loss = imagen_loss
                 # imagen_loss_prep = torch.log(imagen_loss) if 1 > imagen_loss > 0 else imagen_loss
-                imagen_loss_prep = (imagen_loss)
+                imagen_loss_prep = imagen_loss
                 # imagen_loss_prep = torch.log(imagen_loss)
-                # loss = imagen_loss_prep + triplet_loss
-                loss = triplet_loss
+                loss = 3 * imagen_loss_prep + 0.3 * triplet_loss
+                # loss = triplet_loss
 
                 loss = loss * chunk_size_frac
 
