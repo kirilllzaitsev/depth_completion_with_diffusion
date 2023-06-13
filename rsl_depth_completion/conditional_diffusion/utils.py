@@ -238,6 +238,7 @@ def plot_full_prediction(output_depths, eval_batch, kbnet_predictor, idx_to_use=
         img = img.permute(1, 2, 0).cpu().numpy()
         pred = pred.squeeze().cpu().detach().numpy()
         sdm = sdm.squeeze().cpu().detach().numpy()
+        sdm = np.where(sdm > 0, 1, 0)
         gt = gt.squeeze().cpu().detach().numpy()
         input_img = input_img.permute(1, 2, 0).cpu().numpy()
         cond_img = cond_img.permute(1, 2, 0).cpu().numpy()
