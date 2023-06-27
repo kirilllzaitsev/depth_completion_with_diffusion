@@ -107,29 +107,9 @@ class KittiDCDataset(torch.utils.data.Dataset):
             if val is not None
         }
 
-        t_vecs = []
-        r_mats = []
-        if self.split == "train" and self.config.use_pose:
-            for i, adj_img in enumerate(adj_imgs):
-                success, r_mat, t_vec = self.estimate_pose(img, sparse_dm, adj_img)
-                if not success:
-                    # return the same image and no motion when PnP fails
-                    logger.warning(
-                        f"PnP failed, returning the same image for the {i-self.config.n_adjacent}th adjacent frame of the sample {self.paths['img'][index]}"
-                    )
-                    adj_imgs[i] = img
-                t_vecs.append(t_vec)
-                r_mats.append(r_mat)
-
-            for i in range(len(adj_imgs)):
-                adj_imgs[i] = transforms.to_float_tensor(adj_imgs[i])
-                t_vecs[i] = transforms.to_float_tensor(t_vecs[i])
-                r_mats[i] = transforms.to_float_tensor(r_mats[i])
-
-            items["adj_imgs"] = torch.stack(adj_imgs, dim=0).float()
-            items["r_mats"] = torch.stack(r_mats, dim=0).float()
-            items["t_vecs"] = torch.stack(t_vecs, dim=0).float()
-
+        for i in range(len(adj_imgs)):
+            adj_imgs[i] = transforms.to_float_tensor(adj_imgs[i])
+        items["adj_imgs"] = torch.stack(adj_imgs, dim=0).float()
         return items
 
     def estimate_pose(self, img, sparse_dm, adj_imgs):
