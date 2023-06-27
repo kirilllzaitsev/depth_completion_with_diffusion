@@ -2,14 +2,13 @@ from typing import Any, Dict, Optional, Tuple
 
 import torch
 from kbnet import data_utils
+from kbnet.datasets import KBNetTrainingDataset
 from lightning import LightningDataModule
+from rsl_depth_completion.data.kbnet import kbnet_dataset
 from torch.utils.data import DataLoader, Dataset, random_split
 
 # from torchvision.datasets import MNIST
 from torchvision.transforms import transforms
-
-from rsl_depth_completion.data.kbnet import kbnet_dataset
-from kbnet.datasets import KBNetTrainingDataset
 
 
 class KBnetDataModule(LightningDataModule):
@@ -72,7 +71,7 @@ class KBnetDataModule(LightningDataModule):
                 ds_config.test_intrinsics_path
             )
 
-            trainset = KBNetTrainingDataset(
+            self.data_train = KBNetTrainingDataset(
                 image_paths=train_image_paths,
                 sparse_depth_paths=train_sparse_depth_paths,
                 intrinsics_paths=train_intrinsics_paths,
@@ -80,20 +79,20 @@ class KBnetDataModule(LightningDataModule):
                 random_crop_type=ds_config.random_crop_type,
             )
 
-            train_len = int(len(trainset) * 0.9)
-            val_len = len(trainset) - train_len
-            lengths = [train_len, val_len]
-            self.data_train, self.data_val = random_split(
-                dataset=trainset,
-                lengths=lengths,
-                generator=torch.Generator().manual_seed(42),
-            )
-
-            self.data_test = kbnet_dataset.CustomKBNetInferenceDataset(
+            valset = kbnet_dataset.CustomKBNetInferenceDataset(
                 image_paths=val_image_paths,
                 sparse_depth_paths=val_sparse_depth_paths,
                 intrinsics_paths=val_intrinsics_paths,
                 ground_truth_paths=val_ground_truth_paths,
+            )
+
+            test_len = int(len(valset) * 0.3)
+            val_len = len(valset) - test_len
+            lengths = [test_len, val_len]
+            self.data_test, self.data_val = random_split(
+                dataset=valset,
+                lengths=lengths,
+                generator=torch.Generator().manual_seed(42),
             )
             self.data_predict = kbnet_dataset.CustomKBNetInferenceDataset(
                 image_paths=test_image_paths,

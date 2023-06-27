@@ -25,11 +25,11 @@ transforms:
     - 1
     
 
-net:
+depth_net:
   _target_: kbnet.kbnet_model.KBNetModel
   activation_func: leaky_relu
   deconv_type: up
-  device: cuda
+  # device: cuda
   # device: cpu
   input_channels_depth: 2
   input_channels_image: 3
@@ -71,6 +71,13 @@ net:
     - 3
   weight_initializer: xavier_normal
 
+pose_net:
+  _target_: kbnet.posenet_model.PoseNetModel
+  encoder_type: "resnet18"
+  rotation_parameterization: "axis"
+  weight_initializer: "xavier_normal"
+  activation_func: "relu"
+
 config:
   # depth_model_restore_path: /media/master/wext/msc_studies/second_semester/research_project/related_work/calibrated-backprojection-network/trained_kbnet/custom/kbnet_model/depth_model-14280.pth
   depth_model_restore_path: ${paths.data_dir}/ckpts/benchmarking/kbnet-kitti.pth
@@ -85,5 +92,13 @@ config:
     - 1.0
   outlier_removal_kernel_size: 7
   outlier_removal_threshold: 1.5
+  w_color: 0.15
+  w_structure: 0.95
+  w_sparse_depth: 0.60
+  w_smoothness: 0.04
+  augmentation_probability: 1.0
+  weight_decay_depth: 0.0
+  weight_decay_pose: 0.0
+  learning_rate: 5e-5
 
 ckpt_path: ${.config.depth_model_restore_path}
