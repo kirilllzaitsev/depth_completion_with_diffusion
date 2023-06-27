@@ -1,6 +1,11 @@
-# Official repository for the paper TBA
+# Self-supervised depth completion
 
 ## Contents
+
+The project consists of two independent parts:
+
+- conditional_diffusion - implementation of the conditional diffusion model from the semester thesis.
+- rsl_depth_completion - training pipeline for self-supervised depth completion
 
 ## Installation
 
@@ -37,16 +42,41 @@ for d in */ ; do (cd "$d" && pip install --no-deps -e .); done
 
 ## Usage
 
-poetry run -m self_supervised_dc.main
+### Conditional diffusion
 
-## TODO
+### Self-supervised depth completion
 
-- [ ] Add code for working with NYUv2 dataset
-- [ ] Abstract out the data loading code from the concrete benchmark. Ultimate goal - to load several subsequent frames from a video, apply transformations, provide as an input to the network.
-- [ ] Create training module
-- [ ] Create error-analysis module. This module should answer to quantitative and qualitative questions about the model performance. As many questions as possible.
-- [ ] Create inference module
-- [ ] Create logging module
+At this point, the following parts of the pipeline are implemented:
+
+- KITTI dataset with the following sample components:
+  - RGB frame
+  - Sparse depth map
+  - camera intrinsics (calibration matrix)
+  - camera extrinsics (rotation, translation)
+  - adjacent RGB frames
+  - ground truth depth map
+- train/val/test and predict for the KBnet model
+
+Control over the training process is provided by the [Hydra](https://hydra.cc/) framework. The configuration files are located in the configs/ directory.
+
+#### Add a new model
+
+To add a new model for benchmarking purposes, please follow the process described for the KBnet.
+
+1. Create a LightningModule that mirrors runtime of the model in the official code (models/benchmarking/adapters/kbnet_module.py)
+2. Create a Hydra config file that provides necessary arguments for the LightningModule (configs/models/kbnet.yaml)
+3. Create a datamodule that provides the data for the model (datamodules/kitti.py)
+4. Create a Hydra config file that provides necessary arguments for the data module (configs/data/kbnet.yaml)
+
+**Note.** KBnet uses non-standard KITTI dataset: following official implementation, RGB images must be stored as triplets at times (t-1, t, t+1), not as individual frames in original KITTI dataset. For this reason, the datamodule for KBnet is different from the datamodule for other models that use KITTI dataset (data/kitti_datamodule.py). If a model uses standard KITTI dataset, please reuse the kitti_datamodule.py.
+
+#### Run a pipeline
+
+To train/val/test a model, run:
+
+```bash
+poetry run -m rsl_depth_completion.train
+```
 
 ## Acknowledgements
 
