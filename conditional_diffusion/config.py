@@ -1,0 +1,199 @@
+import os
+
+import dotenv
+import torch
+import yaml
+
+dotenv.load_dotenv()
+
+
+class lr_schedule_cfg:
+    patience = 2
+    min_lr = 1e-8
+    factor = 0.5
+
+    @classmethod
+    def params(cls):
+        return {
+            "patience": cls.patience,
+            "min_lr": cls.min_lr,
+            "factor": cls.factor,
+        }
+
+
+class early_stop_cfg:
+    patience = 4
+    min_delta = 1e-3
+
+    @classmethod
+    def params(cls):
+        return {
+            "patience": cls.patience,
+            "min_delta": cls.min_delta,
+        }
+
+
+class cfg:
+    # ds_name = "mnist"
+    ds_name = "kitti"
+    # default_file = "configs/overfit.yaml"
+    # default_file = "configs/full_dataset.yaml"
+
+    batch_size = 0
+    num_workers = 0
+    do_save_model = True
+    do_save_every_n_epochs = False
+    is_cluster = os.path.exists("/cluster")
+
+    def load_from_file(self, path):
+        params = yaml.safe_load(open(path))
+        for k, v in params.items():
+            try:
+                v = eval(v)
+            except:
+                pass
+            setattr(self, k, v)
+
+    num_gpus = torch.cuda.device_count()
+
+    def __init__(self, path=None):
+        if self.is_cluster:
+            self.base_kitti_dataset_dir = os.path.join(
+                self.tmpdir, os.environ["base_kitti_dataset_dir"]
+            )
+        else:
+            self.base_kitti_dataset_dir = os.environ["base_kitti_dataset_dir"]
+
+        if self.use_super_res:
+            self.other_tags.append(f"super_res_{self.super_res_img_size}")
+
+        if path is not None:
+            self.load_from_file(path)
+
+        self.num_workers = min(os.cpu_count(), max(self.batch_size, self.num_gpus))
+
+        assert not (
+            self.only_base and (self.only_super_res or self.use_super_res)
+        ), "only_base and (only_super_res or use_super_res) are mutually exclusive"
+
+    do_sample = True
+    do_overfit = True
+    do_train_val_split = False
+    do_lr_schedule = True
+    do_early_stopping = True
+    other_tags = []
+    exp_targets = []
+
+    # disabled = not is_cluster
+    # disabled = True
+    disabled = False
+    input_img_sdm_interpolation_mode = "infill"
+    cond_img_sdm_interpolation_mode = "interpolate"
+
+    use_triplet_loss = False
+
+    lr_schedule_cfg = lr_schedule_cfg
+    early_stop_cfg = early_stop_cfg
+
+    base_dim = 64
+    sr_dim = 64
+    input_channels = 1
+    timesteps = 200
+    cond_scale = 8.0
+    input_res = 64
+    input_img_size = (input_res, input_res)
+    max_input_img_size = (256, 256)
+    memory_efficient = False
+    num_resnet_blocks = 2
+    auto_normalize_img = True
+
+    use_validity_map_depth = False
+    sz_loss_weight = 0.4
+
+    only_base = False
+    use_super_res = False
+    only_super_res = False
+    super_res_img_size = (input_res, input_res)
+
+    unets_output_res = [64]
+    if use_super_res:
+        unets_output_res.append(input_res)
+    stop_at_unet_number = 2
+
+    fp16 = False
+    max_batch_size = num_gpus
+
+    num_epochs = 0
+    train_one_epoch = False
+    lr = 0.0
+    sampling_freq = 0
+    do_save_inputs_every_batch = False
+
+    eval_batch_path = "eval_batch.pt"
+    trainer_ckpt_path = None
+    pose_model_restore_path = None
+
+    max_depth = 100
+    do_crop = True
+
+    seed = 100
+
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    tmpdir = os.getenv("TMPDIR")
+    cluster_logdir = "/cluster/scratch/kzaitse/logs"
+    path_to_project_dir = os.environ["path_to_project_dir"]
+
+    def __setattr__(self, name, value):
+        if name == "batch_size":
+            self.num_workers = min(os.cpu_count(), max(value, self.num_gpus))
+        elif name == "input_res":
+            self.input_img_size = (value, value)
+            self.super_res_img_size = (value, value)
+            if self.use_super_res:
+                self.unets_output_res[1] = value
+        elif name == "only_super_res" and value:
+            self.use_super_res = True
+            self.only_base = False
+        self.__dict__[name] = value
+
+    def params(self):
+        attrs_to_exclude = [
+            "path_to_project_dir",
+            "base_kitti_dataset_dir",
+        ]
+        return {
+            **{
+                k: v
+                for k, v in vars(self).items()
+                if not k.startswith("__")
+                and not callable(v)
+                and k not in attrs_to_exclude
+            },
+            **{
+                f"lr_schedule_cfg/{k}": v
+                for k, v in self.lr_schedule_cfg.params().items()
+            },
+            **{
+                f"early_stop_cfg/{k}": v
+                for k, v in self.early_stop_cfg.params().items()
+            },
+        }
+
+
+class cfg_ssl(cfg):
+    input_res = 256
+    input_img_size = (256, 256)
+    unets_output_res = [64, 256]
+    eval_batch_path = "eval_batch.pt"
+    use_triplet_loss = True
+
+
+if cfg_ssl.is_cluster:
+    cfg_ssl.pose_model_restore_path = "/cluster/home/kzaitse/rsl_depth_completion/rsl_depth_completion/conditional_diffusion/models/kbnet/posenet-kitti.pth"
+else:
+    cfg_ssl.pose_model_restore_path = "/media/master/wext/msc_studies/second_semester/research_project/related_work/calibrated-backprojection-network/pretrained_models/kitti/posenet-kitti.pth"
+
+
+if __name__ == "__main__":
+    print(cfg.params())
