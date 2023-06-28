@@ -124,7 +124,7 @@ class KittiDCDataset(torch.utils.data.Dataset):
         return success, r_mat, t_vec
 
     def __len__(self):
-        return len(self.paths["gt"])
+        return len(self.paths["img"])
 
 
 class CustomKittiDCDataset(KittiDCDataset):

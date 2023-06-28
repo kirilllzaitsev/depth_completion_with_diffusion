@@ -1,12 +1,16 @@
 from typing import Any, Dict, Optional, Tuple
 
+import hydra
 import omegaconf as oc
 import torch
-from lightning import LightningDataModule
-from rsl_depth_completion.data.kitti.kitti_dataset import KittiDCDataset, CustomKittiDCDataset
-from torch.utils.data import ConcatDataset, DataLoader, Dataset, random_split
-from torchvision.transforms import transforms
 from kbnet import data_utils
+from lightning import LightningDataModule
+from omegaconf import DictConfig
+from rsl_depth_completion.data.kitti.kitti_dataset import (
+    CustomKittiDCDataset,
+    KittiDCDataset,
+)
+from torch.utils.data import DataLoader, Dataset, random_split
 
 
 class KittiDataModule(LightningDataModule):
@@ -49,6 +53,7 @@ class KittiDataModule(LightningDataModule):
                 ds_config.use_rgb = ("rgb" in ds_config.input) or ds_config.use_pose
                 ds_config.use_d = "d" in ds_config.input
                 ds_config.use_g = "g" in ds_config.input
+
             trainset = KittiDCDataset(
                 ds_config,
                 path_to_calib_files=ds_config.path_to_calib_files,
@@ -65,13 +70,21 @@ class KittiDataModule(LightningDataModule):
                 generator=torch.Generator().manual_seed(42),
             )
 
-            testset = KittiDCDataset(
+            valset = KittiDCDataset(
                 ds_config,
                 path_to_calib_files=ds_config.path_to_calib_files,
                 path_to_depth_completion_dir=ds_config.path_to_depth_completion_dir,
                 train=False,
             )
-            dataset = ConcatDataset(datasets=[trainset, testset])
+
+            test_len = int(len(valset) * 0.3)
+            val_len = len(valset) - test_len
+            lengths = [test_len, val_len]
+            self.data_test, self.data_val = random_split(
+                dataset=valset,
+                lengths=lengths,
+                generator=torch.Generator().manual_seed(42),
+            )
 
             test_image_paths = data_utils.read_paths(ds_config.test_image_path)
             test_sparse_depth_paths = data_utils.read_paths(
@@ -80,30 +93,6 @@ class KittiDataModule(LightningDataModule):
             test_intrinsics_paths = data_utils.read_paths(
                 ds_config.test_intrinsics_path
             )
-
-            # trainset = KBNetTrainingDataset(
-            #     image_paths=train_image_paths,
-            #     sparse_depth_paths=train_sparse_depth_paths,
-            #     intrinsics_paths=train_intrinsics_paths,
-            #     shape=ds_config.shape,
-            #     random_crop_type=ds_config.random_crop_type,
-            # )
-
-            # train_len = int(len(trainset) * 0.9)
-            # val_len = len(trainset) - train_len
-            # lengths = [train_len, val_len]
-            # self.data_train, self.data_val = random_split(
-            #     dataset=trainset,
-            #     lengths=lengths,
-            #     generator=torch.Generator().manual_seed(42),
-            # )
-
-            # self.data_test = CustomKittiDCDataset(
-            #     image_paths=val_image_paths,
-            #     sparse_depth_paths=val_sparse_depth_paths,
-            #     intrinsics_paths=val_intrinsics_paths,
-            #     ground_truth_paths=val_ground_truth_paths,
-            # )
             self.data_predict = CustomKittiDCDataset(
                 ds_config=ds_config,
                 image_paths=test_image_paths,
@@ -142,5 +131,22 @@ class KittiDataModule(LightningDataModule):
         pass
 
 
+# @hydra.main(version_base="1.3", config_path="../configs", config_name="data/kitti_custom.yaml")
+@hydra.main(
+    version_base="1.3",
+    config_path="/media/master/wext/msc_studies/second_semester/research_project/project/rsl_depth_completion/configs",
+    config_name="train.yaml"
+    # , config_name="data/kitti_custom.yaml"
+)
+def main(cfg: DictConfig) -> Optional[float]:
+    ds = hydra.utils.instantiate(cfg.data)
+    ds.setup()
+    print(len(ds.data_train))
+    print(len(ds.data_val))
+
+
 if __name__ == "__main__":
-    ds = KittiDataModule()
+    import pyrootutils
+
+    pyrootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
+    main()
