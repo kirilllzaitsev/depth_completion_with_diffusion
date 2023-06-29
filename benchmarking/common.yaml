@@ -1,0 +1,12 @@
+mask_dir: demo/results/masks/kitti_val_image
+
+image_filelist_path: /path/to/kitti-full/data/train_val_test_file_paths_raw/validation/kitti_val_image.txt
+sparse_depth_filelist_path: /path/to/kitti-full/data/train_val_test_file_paths_raw/validation/kitti_val_sparse_depth.txt
+ground_truth_filelist_path: /path/to/kitti-full/data/train_val_test_file_paths_raw/validation/kitti_val_ground_truth.txt
+
+path_to_input_img: /path/to/kitti-full/data/kitti_depth_completion/validation/image/
+path_to_sparse_dm: /path/to/kitti-full/data/kitti_depth_completion/validation/sparse_depth
+path_to_gt: /path/to/kitti-full/data/kitti_depth_completion/validation/ground_truth
+
+split: val
+intrinsics_filelist_path: /path/to/kitti-full/data/train_val_test_file_paths_raw/validation/kitti_val_intrinsics.txt
