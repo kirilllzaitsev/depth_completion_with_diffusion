@@ -71,7 +71,12 @@ def load_data(cfg, ds_name="mnist", do_overfit=False, **ds_kwargs):
     post_transform = tv.transforms.Compose(post_transforms)
     ds = DMDataset(sub_ds, transform=post_transform)
 
-    subset_range = range(0, cfg.batch_size) if do_overfit else range(0, 400)
+    if do_overfit:
+        subset_range = range(0, cfg.batch_size)
+    elif cfg.use_data_subset:
+        subset_range = range(0, 400)
+    else:
+        subset_range = range(0, len(ds))
 
     ds_subset = torch.utils.data.Subset(
         ds,
@@ -92,7 +97,7 @@ def load_data(cfg, ds_name="mnist", do_overfit=False, **ds_kwargs):
         "num_workers": cfg.num_workers,
         "drop_last": True,
         "pin_memory": True,
-        "prefetch_factor": 2
+        "prefetch_factor": 2,
     }
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset, **dl_opts, shuffle=False if do_overfit else True

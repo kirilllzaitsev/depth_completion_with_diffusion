@@ -81,6 +81,7 @@ class cfg:
     do_train_val_split = False
     do_lr_schedule = True
     do_early_stopping = True
+    use_data_subset = True
     other_tags = []
     exp_targets = []
 
