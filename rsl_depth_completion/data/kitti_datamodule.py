@@ -131,12 +131,10 @@ class KittiDataModule(LightningDataModule):
         pass
 
 
-# @hydra.main(version_base="1.3", config_path="../configs", config_name="data/kitti_custom.yaml")
 @hydra.main(
     version_base="1.3",
-    config_path="/media/master/wext/msc_studies/second_semester/research_project/project/rsl_depth_completion/configs",
+    config_path="../../configs",
     config_name="train.yaml"
-    # , config_name="data/kitti_custom.yaml"
 )
 def main(cfg: DictConfig) -> Optional[float]:
     ds = hydra.utils.instantiate(cfg.data)

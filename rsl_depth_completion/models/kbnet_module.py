@@ -20,7 +20,7 @@ class KBnetLitModule(LightningModule):
     ):
         super().__init__()
 
-        self.save_hyperparameters(logger=True)
+        self.save_hyperparameters()
 
         self.depth_net = depth_net
         self.pose_net = pose_net
@@ -32,6 +32,7 @@ class KBnetLitModule(LightningModule):
         self.train_total = TotalMetric()
         self.val_total = TotalMetric()
         self.test_total = TotalMetric()
+        self.do_log_with_logger = self.logger is not None
         self.to(self.device)
 
     def load_from_checkpoint(self, ckpt_path):
@@ -156,7 +157,7 @@ class KBnetLitModule(LightningModule):
                     on_step=False,
                     on_epoch=True,
                     prog_bar=True,
-                    logger=True,
+                    logger=self.do_log_with_logger,
                 )
 
     def validation_step(self, batch: Any, batch_idx: int):
@@ -218,7 +219,7 @@ class KBnetLitModule(LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
-            logger=True,
+            logger=self.do_log_with_logger,
         )
         self.log(
             f"{stage}/rmse",
@@ -226,7 +227,7 @@ class KBnetLitModule(LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
-            logger=True,
+            logger=self.do_log_with_logger,
         )
         self.log(
             f"{stage}/imae",
@@ -234,7 +235,7 @@ class KBnetLitModule(LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
-            logger=True,
+            logger=self.do_log_with_logger,
         )
         self.log(
             f"{stage}/irmse",
@@ -242,7 +243,7 @@ class KBnetLitModule(LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
-            logger=True,
+            logger=self.do_log_with_logger,
         )
 
     def calc_metrics(self, metric_fn, output_depth, ground_truth):

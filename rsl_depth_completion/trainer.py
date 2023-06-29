@@ -3,7 +3,7 @@ import lightning
 import lightning.pytorch.trainer
 import torch
 
-from rsl_depth_completion.models.benchmarking.adapters.kbnet_module import (
+from rsl_depth_completion.models.kbnet_module import (
     KBnetLitModule,
 )
 
