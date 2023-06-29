@@ -15,7 +15,7 @@ import torch.nn.functional as F
 from accelerate import Accelerator, DistributedDataParallelKwargs, DistributedType
 
 # from imagen_pytorch.imagen_pytorch import Imagen, NullUnet
-from custom_imagen_pytorch_ssl import Imagen, NullUnet
+from conditional_diffusion.custom_imagen_pytorch import Imagen, NullUnet
 from ema_pytorch import EMA
 from fsspec.core import url_to_fs
 from fsspec.implementations.local import LocalFileSystem

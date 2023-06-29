@@ -2080,9 +2080,11 @@ class Imagen(nn.Module):
         resize_mode="nearest",
         min_snr_loss_weight=True,  # https://arxiv.org/abs/2303.09556
         min_snr_gamma=5,
+        do_return_denoised=False,
     ):
         super().__init__()
         self.cfg = cfg
+        self.do_return_denoised = do_return_denoised
 
         # loss
 
@@ -3077,7 +3079,6 @@ class Imagen(nn.Module):
                 plt.imshow(x_denoised[0, 0].detach().cpu().numpy())
                 plt.savefig("x_denoised.png")
             losses += self.cfg.sz_loss_weight * F.l1_loss(
-            # losses = F.l1_loss(
                 x_denoised[validity_map_depth], input_x[validity_map_depth]
             )
 
@@ -3097,11 +3098,29 @@ class Imagen(nn.Module):
             loss_weight = maybe_clipped_snr / (snr + 1)
 
         losses = losses * loss_weight
+
+        do_plot_imgs = False
+        if do_plot_imgs:
+            import matplotlib.pyplot as plt
+
+            fig, axs = plt.subplots(1, 5, figsize=(20, 5))
+            axs[0].imshow(x_start[0].detach().cpu().numpy().transpose(1, 2, 0))
+            axs[1].imshow(x_noisy[0].detach().cpu().numpy().transpose(1, 2, 0))
+            axs[3].imshow(pred[0].detach().cpu().numpy().transpose(1, 2, 0))
+            axs[4].imshow(x_denoised[0].detach().cpu().numpy().transpose(1, 2, 0))
+            axs[2].imshow(noise[0].detach().cpu().numpy().transpose(1, 2, 0))
+            axs[0].set_title("x_start")
+            axs[1].set_title("x_noisy")
+            axs[3].set_title("pred_noise")
+            axs[4].set_title("x_denoised")
+            axs[2].set_title("orig_noise")
+            save_path = "/tmp/train_iter_sample.png"
+            plt.savefig(save_path)
+            print(f"saved imgs from imagen.forward to {save_path}")
+
+        if self.do_return_denoised:
+            return losses.mean(), x_denoised
         return losses.mean()
-        # return {
-        #     pred_objective: losses.mean(),
-        #     "diff_to_orig_img": (noise - pred).abs().mean(),
-        # }
 
     @beartype
     def forward(
@@ -3186,6 +3205,8 @@ class Imagen(nn.Module):
         )
 
         times = noise_scheduler.sample_random_times(b, device=device)
+        # if kwargs.pop("use_max_times", False):
+        #     times = torch.ones_like(times).to(device)
 
         if exists(texts) and not exists(text_embeds) and not self.unconditional:
             assert all([*map(len, texts)]), "text cannot be empty"
