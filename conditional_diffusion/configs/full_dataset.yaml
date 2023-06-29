@@ -7,3 +7,4 @@ train_one_epoch: false
 sampling_freq: 4
 batch_size: 4
 do_save_model: true
+use_data_subset: false
