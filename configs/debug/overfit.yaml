@@ -8,6 +8,3 @@ defaults:
 trainer:
   max_epochs: 20
   overfit_batches: 1
-
-# model ckpt and early stopping need to be disabled during overfitting
-callbacks: null
