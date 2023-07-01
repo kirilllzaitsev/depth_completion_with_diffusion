@@ -229,5 +229,5 @@ See the README in the benchmarking directory: [benchmarking/README.md](benchmark
 ## Acknowledgements
 
 - <https://github.com/fangchangma/self-supervised-depth-completion> - base code for data loading and self-supervised losses.
-- <https://github.com/alexklwong/calibrated-backprojection-network> - base code for additional loss functions.
+- <https://github.com/alexklwong/calibrated-backprojection-network> - base code for KBnet KITTI dataset.
 - <https://github.com/ashleve/lightning-hydra-template#best-practices> - template for the project structure.

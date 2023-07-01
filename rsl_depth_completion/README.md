@@ -2,20 +2,70 @@
 
 At this point, the pipeline has the following parts:
 
-- KITTI dataset with the following sample components:
+- KITTI dataset with samples consisting of:
   - RGB frame
   - Sparse depth map
   - camera intrinsics (calibration matrix)
   - camera extrinsics (rotation, translation)
   - adjacent RGB frames
   - ground truth depth map
-- KBnet model (models/kbnet_module.py)
-- KBnet dataset (data/kbnet_datamodule.py)
-- train/val/test and predict for the KBnet model
+- KBnet model (models/kbnet_module.py, configs/models/kbnet.yaml)
+- KBnet dataset (data/kbnet_datamodule.py, configs/data/kbnet.yaml)
+- train/val/test and predict for the KBnet model (eval.py, train.py, configs/train.yaml)
 
-Control over the training process is provided by the [Hydra](https://hydra.cc/) framework. Comprehensive instructions on how to use the pipeline efficiently are at [this link](https://github.com/ashleve/lightning-hydra-template). The configuration files are located in the configs/ directory.
+## Pipeline management
 
-Folder structure:
+Control over the training process is done via the [Hydra](https://hydra.cc/) framework. The configuration files are located in the [configs/ directory](../configs).
+
+In a nutshell, Hydra allows to externalize the configuration of different pipeline steps from the code, promoting code reusability, reproducibility, and modular design. Let's discuss the following excerpt from a `configs/model/kbnet.yaml`:
+
+```yaml
+_target_: rsl_depth_completion.models.benchmarking.adapters.kbnet_module.KBnetLitModule
+
+outlier_removal:
+  _target_: kbnet.net_utils.OutlierRemoval
+  kernel_size: 7
+  threshold: 1.5
+
+pose_net:
+  _target_: kbnet.posenet_model.PoseNetModel
+  encoder_type: "resnet18"
+  rotation_parameterization: "axis"
+  weight_initializer: "xavier_normal"
+  activation_func: "relu"
+
+config:
+  depth_model_restore_path: ${paths.data_dir}/ckpts/benchmarking/kbnet-kitti.pth
+  save_outputs: true
+  output_path: ${paths.output_dir}/kbnet_results
+  keep_input_filenames: false
+  max_evaluate_depth: 100.0
+  min_evaluate_depth: 0.0
+  normalized_image_range:
+    - 0.0
+    - 1.0
+  outlier_removal_kernel_size: 7
+  outlier_removal_threshold: 1.5
+  w_color: 0.15
+  w_structure: 0.95
+  w_sparse_depth: 0.60
+  w_smoothness: 0.04
+  augmentation_probability: 1.0
+  weight_decay_depth: 0.0
+  weight_decay_pose: 0.0
+  learning_rate: 5e-5
+
+ckpt_path: ${.config.depth_model_restore_path}
+```
+
+`_target_` is a special key that tells Hydra which class to instantiate. If present, all the other keys in the snippet that are on the same hierarchical level are passed to the constructor of the class.
+ In this case, the target class is a LightningModule that wraps the KBnet model, `KBnetLitModule`. The rest of the snippet is passed to the `__init__` method of this LightningModule.
+
+ For example, `pose_net` is an argument in `KBnetLitModule`'s constructor that denotes a `PoseNetModel` class. It will be instantiated with the arguments provided by the rest of the keys in the `pose_net` object in the snippet.
+
+`ckpt_path` references the same path as `config.depth_model_restore_path`, defined previously in the same file. In its turn, `config.depth_model_restore_path` references the `paths.data_dir` key, which is defined in the `configs/paths/default.yaml` file. This is how Hydra allows to reuse configuration values across different files.
+
+## Folder structure
 
 ```bash
 rsl_depth_completion
