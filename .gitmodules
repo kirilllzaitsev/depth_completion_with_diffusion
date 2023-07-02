@@ -1,0 +1,3 @@
+[submodule "calibrated_backprojection_network"]
+	path = submodules/calibrated_backprojection_network
+	url = https://github.com/kirilllzaitsev/calibrated-backprojection-network.git

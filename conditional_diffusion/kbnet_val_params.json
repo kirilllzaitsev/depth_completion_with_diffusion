@@ -1,0 +1,62 @@
+{
+    "input_channels_image": 3,
+    "input_channels_depth": 2,
+    "normalized_image_range": [
+        0.0,
+        1.0
+    ],
+    "outlier_removal_kernel_size": 7,
+    "outlier_removal_threshold": 1.5,
+    "min_pool_sizes_sparse_to_dense_pool": [
+        5,
+        7,
+        9,
+        11,
+        13
+    ],
+    "max_pool_sizes_sparse_to_dense_pool": [
+        15,
+        17
+    ],
+    "n_convolution_sparse_to_dense_pool": 3,
+    "n_filter_sparse_to_dense_pool": 8,
+    "n_filters_encoder_image": [
+        48,
+        96,
+        192,
+        384,
+        384
+    ],
+    "n_filters_encoder_depth": [
+        16,
+        32,
+        64,
+        128,
+        128
+    ],
+    "resolutions_backprojection": [
+        0,
+        1,
+        2,
+        3
+    ],
+    "n_filters_decoder": [
+        256,
+        128,
+        128,
+        64,
+        12
+    ],
+    "deconv_type": "up",
+    "min_predict_depth": 1.5,
+    "max_predict_depth": 100.0,
+    "weight_initializer": "xavier_normal",
+    "activation_func": "leaky_relu",
+    "min_evaluate_depth": 0.0,
+    "max_evaluate_depth": 100.0,
+    "save_outputs": true,
+    "keep_input_filenames": false,
+    "depth_model_restore_path": "models/kbnet/kbnet-kitti.pth",
+    "pose_model_restore_path": "models/kbnet/pose_model-200-epochs-overfit.pth",
+    "device": "cuda"
+}

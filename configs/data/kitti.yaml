@@ -1,0 +1,36 @@
+_target_: rsl_depth_completion.data.kitti_datamodule.KittiDataModule
+batch_size: 1
+num_workers: 20
+pin_memory: False
+ds_config:
+  train_mode: dense+photo
+  input: gd
+  n_adjacent: 1
+  jitter: 0.1
+  result_dir: ${paths.output_dir}/results
+
+  path_to_calib_files: ${paths.kitti_data_dir}/kitti-calibration
+  path_to_depth_completion_dir: ${paths.kitti_data_dir}/kitti-depth-completion
+
+  train_image_path: ${paths.kitti_data_dir}/data/train_val_test_file_paths_raw/training/kitti_train_image.txt
+  train_intrinsics_path: ${paths.kitti_data_dir}/data/train_val_test_file_paths_raw/training/kitti_train_intrinsics.txt
+  train_sparse_depth_path: ${paths.kitti_data_dir}/data/train_val_test_file_paths_raw/training/kitti_train_sparse_depth.txt
+  train_ground_truth_path: ${paths.kitti_data_dir}/data/train_val_test_file_paths_raw/training/kitti_train_ground_truth.txt
+
+  val_image_path: ${paths.kitti_data_dir}/data/train_val_test_file_paths_raw/validation/kitti_val_image.txt
+  val_intrinsics_path: ${paths.kitti_data_dir}/data/train_val_test_file_paths_raw/validation/kitti_val_intrinsics.txt
+  val_sparse_depth_path: ${paths.kitti_data_dir}/data/train_val_test_file_paths_raw/validation/kitti_val_sparse_depth.txt
+  val_ground_truth_path: ${paths.kitti_data_dir}/data/train_val_test_file_paths_raw/validation/kitti_val_ground_truth.txt
+
+  test_image_path: ${paths.kitti_data_dir}/data/train_val_test_file_paths_kbnet/testing/kitti_test_image.txt
+  test_intrinsics_path: ${paths.kitti_data_dir}/data/train_val_test_file_paths_kbnet/testing/kitti_test_intrinsics.txt
+  test_sparse_depth_path: ${paths.kitti_data_dir}/data/train_val_test_file_paths_kbnet/testing/kitti_test_sparse_depth.txt
+
+  # test_image_path: ${forest_paths.kitti_data_dir}/kitti_format_subsample/paths/image.txt
+  # test_intrinsics_path: ${forest_paths.kitti_data_dir}/kitti_format_subsample/paths/intrinsics.txt
+  # test_sparse_depth_path: ${forest_paths.kitti_data_dir}/kitti_format_subsample/paths/sparse_depth.txt
+
+  split: train
+  subsplit: train
+  # split: val
+  # subsplit: select

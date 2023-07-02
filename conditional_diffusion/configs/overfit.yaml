@@ -1,0 +1,9 @@
+do_overfit: true
+do_lr_schedule: true
+do_early_stopping: true
+num_epochs: 1500
+lr: 5e-5
+train_one_epoch: false
+sampling_freq: 150
+batch_size: 2
+do_save_model: true

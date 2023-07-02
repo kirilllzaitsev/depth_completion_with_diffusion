@@ -1,0 +1,26 @@
+{
+    "256": {
+        "image_paths": [
+            "/path/to/kitti-full/kitti-depth-completion/data_rgb/train/2011_09_26_drive_0009_sync/image_02/data/0000000124.png",
+            "/path/to/kitti-full/kitti-depth-completion/data_rgb/train/2011_09_26_drive_0001_sync/image_02/data/0000000090.png"
+        ]
+    },
+    "64": {
+        "image_paths": [
+            "/path/to/kitti-full/kitti-depth-completion/data_rgb/train/2011_09_26_drive_0009_sync/image_02/data/0000000124.png",
+            "/path/to/kitti-full/kitti-depth-completion/data_rgb/train/2011_09_26_drive_0001_sync/image_02/data/0000000090.png"
+        ]
+    },
+    "128": {
+        "image_paths": [
+            "/path/to/kitti-full/kitti-depth-completion/data_rgb/train/2011_09_26_drive_0009_sync/image_02/data/0000000124.png",
+            "/path/to/kitti-full/kitti-depth-completion/data_rgb/train/2011_09_26_drive_0001_sync/image_02/data/0000000090.png"
+        ]
+    },
+    "160": {
+        "image_paths": [
+            "/path/to/kitti-full/kitti-depth-completion/data_rgb/train/2011_09_26_drive_0009_sync/image_02/data/0000000124.png",
+            "/path/to/kitti-full/kitti-depth-completion/data_rgb/train/2011_09_26_drive_0001_sync/image_02/data/0000000090.png"
+        ]
+    }
+}

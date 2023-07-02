@@ -1,3 +1,24 @@
+[tool.poetry]
+name = "rsl_depth_completion"
+version = "0.1.0"
+description = ""
+authors = ["kirilllzaitsev <kzaitsev88@gmail.com>"]
+readme = "README.md"
+packages = [{include = "self_supervised_dc"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+numpy = "^1.24.2"
+matplotlib = "^3.7.1"
+hydra-core = "^1.3.2"
+omegaconf = "^2.3.0"
+pytorch-lightning = "^2.0.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
 [tool.pytest.ini_options]
 addopts = [
   "--color=yes",

@@ -2,8 +2,8 @@
 
 defaults:
   - _self_
-  - data: mnist.yaml # choose datamodule with `test_dataloader()` for evaluation
-  - model: mnist.yaml
+  - data: kbnet.yaml # choose datamodule with `test_dataloader()` for evaluation
+  - model: kbnet.yaml
   - logger: null
   - trainer: default.yaml
   - paths: default.yaml
@@ -15,4 +15,7 @@ task_name: "eval"
 tags: ["dev"]
 
 # passing checkpoint path is necessary for evaluation
-ckpt_path: ???
+ckpt_path: ${model.ckpt_path}
+
+# trainer:
+#   fast_dev_run: 2
