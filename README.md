@@ -23,6 +23,8 @@ curl -sSL https://install.python-poetry.org | python -
 
 #### Data
 
+**Before starting**, make sure to update all paths that start with '/path/to' in the directory you want to work with.
+
 - Download the KITTI Depth Completion dataset from [here](https://www.cvlibs.net/datasets/kitti/eval_depth.php?benchmark=depth_completion) to a PATH_TO_DEPTH_COMPLETION directory of your choice.
 - Replace '???' with PATH_TO_DEPTH_COMPLETION in all files under the rsl_depth_completion/configs/dataset directory.
 
