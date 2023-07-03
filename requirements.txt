@@ -23,7 +23,7 @@ rich            # beautiful text formatting in terminal
 pytest          # tests
 # sh            # for running bash commands in some tests (linux/macos only)
 
-opencv-python==4.7.0.72
+opencv-python==4.8.0.74
 opencv-contrib-python==4.7.0.72
 scikit-image==0.18.2
 transformers==4.28.1
